@@ -1,9 +1,8 @@
-using System;
-using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
-namespace GhActionsMonitor;
+namespace RunnerWatch.Core;
 
-// ---- DTOs da API do GitHub (snake_case) ----
+// ---- GitHub API DTOs (snake_case) ----
 public sealed record GhUser(string Login);
 public sealed record BranchRef(string Ref);
 public sealed record PullRequestRef(long Number, BranchRef Head, BranchRef Base);
@@ -29,11 +28,23 @@ public sealed record RunnersResponse(int TotalCount, List<Runner>? Runners);
 public sealed record Deployment(long Id, string Environment, DateTimeOffset CreatedAt);
 public sealed record Repo(string FullName, DateTimeOffset? PushedAt, bool Archived);
 
-// ---- Métricas (agente / local) ----
+// ---- Runner metrics (agent / local machine) ----
 public sealed record AgentMetrics(double? CpuPercent, long? MemUsed, long? MemTotal, string? Hostname);
 
-// ---- Snapshot entregue para a UI ----
-public enum RunPhase { Running, Queued, Waiting }
+/// <summary>Source-generated JSON for the GitHub API and the metrics agent (Native AOT: no reflection).</summary>
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower, PropertyNameCaseInsensitive = true)]
+[JsonSerializable(typeof(GhUser))]
+[JsonSerializable(typeof(WorkflowRun))]
+[JsonSerializable(typeof(RunsResponse))]
+[JsonSerializable(typeof(JobsResponse))]
+[JsonSerializable(typeof(RunnersResponse))]
+[JsonSerializable(typeof(List<Deployment>))]
+[JsonSerializable(typeof(List<Repo>))]
+[JsonSerializable(typeof(AgentMetrics))]
+public sealed partial class GitHubJson : JsonSerializerContext;
+
+// ---- Snapshot handed to the UI ----
+public enum RunPhase { Running, Queued, Waiting, Failed }
 
 public sealed class JobView
 {
@@ -55,17 +66,25 @@ public sealed class RunView
     public required string Branch { get; init; }
     public required string Event { get; init; }
     public string? Actor { get; init; }
-    public required RunPhase Phase { get; init; }
+    public required RunPhase Phase { get; set; }
     public bool IsDeploy { get; init; }
     public string? DeployEnv { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset? StartedAt { get; init; }
+    public DateTimeOffset? FinishedAt { get; set; }
     public double? EtaSeconds { get; init; }
     public required string Url { get; init; }
     public bool Stuck { get; set; }
-    /// <summary>Na fila porque o runner self-hosted está ocupado com outro job (não é travamento).</summary>
+    /// <summary>Queued only because the self-hosted runner is busy with another job (capacity, not an outage).</summary>
     public bool RunnerBusy { get; set; }
     public List<JobView> Jobs { get; init; } = new();
+
+    public RunView With(List<JobView> jobs) => new()
+    {
+        Id = Id, Repo = Repo, Workflow = Workflow, Title = Title, Branch = Branch, Event = Event, Actor = Actor,
+        Phase = Phase, IsDeploy = IsDeploy, DeployEnv = DeployEnv, CreatedAt = CreatedAt, StartedAt = StartedAt,
+        FinishedAt = FinishedAt, EtaSeconds = EtaSeconds, Url = Url, Stuck = Stuck, RunnerBusy = RunnerBusy, Jobs = jobs,
+    };
 }
 
 public sealed class RunnerView
@@ -90,3 +109,15 @@ public sealed class Snapshot
 }
 
 public enum NotifyKind { Info, Success, Failure, Warning }
+
+/// <summary>Anything that produces snapshots for the widget: the real GitHub monitor or the demo.</summary>
+public interface ISnapshotSource
+{
+    event Action<Snapshot>? Updated;
+    event Action<string, string, NotifyKind>? Notify;
+    event Action? AuthFailed;
+    Task RunAsync(CancellationToken ct);
+    void Kick();
+    /// <summary>Re-runs only the failed jobs of a run. Returns an error message, or null on success.</summary>
+    Task<string?> RerunFailedAsync(RunView run, CancellationToken ct);
+}

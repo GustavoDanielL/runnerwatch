@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Version>0.2.0</Version>
+    <Authors>Gustavo Daniel and contributors</Authors>
+    <Product>RunnerWatch</Product>
+    <Copyright>Copyright (c) 2026 Gustavo Daniel and contributors</Copyright>
+    <RepositoryUrl>https://github.com/GustavoDanielL/runnerwatch</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- CI passa -warnaserror; localmente avisos não bloqueiam. -->
+  </PropertyGroup>
+</Project>

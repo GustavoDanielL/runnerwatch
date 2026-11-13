@@ -1,14 +1,12 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Text;
 
-namespace GhActionsMonitor;
+namespace RunnerWatch.Core;
 
 /// <summary>
-/// Log em arquivo: %LOCALAPPDATA%\GhActionsMonitor\logs\app.log (rotação em 1 MB, guarda 1 anterior).
-/// Mensagens idênticas repetidas em até 60s viram uma linha "(repetiu N vezes)", para que um
-/// erro em laço não encha o disco. Nunca lança exceção: logar não pode derrubar o app.
+/// File log: <c>%LOCALAPPDATA%\RunnerWatch\logs\app.log</c> on Windows, <c>~/.local/share/RunnerWatch/logs/app.log</c>
+/// on Linux/macOS. Rotates at 1 MB (keeps one previous file). Identical messages repeated within 60 s are
+/// collapsed into a single "(repeated N more times)" line so an error loop can't fill the disk.
+/// Never throws: logging must not bring the app down.
 /// </summary>
 public static class Log
 {
@@ -17,13 +15,21 @@ public static class Log
     static readonly object Gate = new();
     static readonly Dictionary<string, (DateTimeOffset First, int Suppressed)> Recent = new();
 
-    public static string Dir { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GhActionsMonitor", "logs");
-    public static string FilePath { get; } = Path.Combine(Dir, "app.log");
+    public static string Dir { get; private set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.Create),
+        "RunnerWatch", "logs");
+
+    public static string FilePath => Path.Combine(Dir, "app.log");
+
+    /// <summary>Redirects the log (tests).</summary>
+    internal static void UseDirectory(string dir)
+    {
+        lock (Gate) { Dir = dir; Recent.Clear(); }
+    }
 
     public static void Info(string msg) => Write("INFO", msg, null);
     public static void Warn(string msg, Exception? ex = null) => Write("WARN", msg, ex);
-    public static void Error(string msg, Exception? ex = null) => Write("ERRO", msg, ex);
+    public static void Error(string msg, Exception? ex = null) => Write("ERROR", msg, ex);
     public static void Fatal(string msg, Exception? ex = null) => Write("FATAL", msg, ex);
 
     static void Write(string level, string msg, Exception? ex)
@@ -49,10 +55,10 @@ public static class Log
                 Append(sb.ToString());
             }
         }
-        catch { /* sem log, mas sem derrubar o app */ }
+        catch { /* no log, but no crash either */ }
     }
 
-    /// <summary>Grava os contadores de repetição pendentes (chamar ao sair).</summary>
+    /// <summary>Writes pending repeat counters (call on exit).</summary>
     public static void Flush()
     {
         try { lock (Gate) FlushExpired(DateTimeOffset.MaxValue); } catch { }
@@ -63,12 +69,12 @@ public static class Log
         List<string>? done = null;
         foreach (var (k, v) in Recent)
         {
-            if (now - v.First < DedupeWindow) continue;
+            if (now != DateTimeOffset.MaxValue && now - v.First < DedupeWindow) continue;
             (done ??= new()).Add(k);
             if (v.Suppressed > 0)
             {
                 var parts = k.Split('|');
-                Append($"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff} {parts[0].PadRight(5)} (repetiu mais {v.Suppressed}x) {parts[1]}");
+                Append($"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff} {parts[0].PadRight(5)} (repeated {v.Suppressed} more times) {parts[1]}");
             }
         }
         if (done != null) foreach (var k in done) Recent.Remove(k);

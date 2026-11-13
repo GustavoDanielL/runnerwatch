@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>RunnerWatch.Core</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- Traduções: um JSON por idioma. Para adicionar um idioma, crie i18n/xx.json. -->
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="i18n\*.json" LogicalName="i18n.%(Filename).json" />
+    <InternalsVisibleTo Include="RunnerWatch.Tests" />
+  </ItemGroup>
+</Project>

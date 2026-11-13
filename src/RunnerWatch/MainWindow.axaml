@@ -1,0 +1,137 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RunnerWatch"
+        x:Class="RunnerWatch.MainWindow"
+        x:DataType="vm:MainVm"
+        Title="RunnerWatch"
+        WindowDecorations="None"
+        TransparencyLevelHint="Transparent"
+        Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False" CanResize="False"
+        SizeToContent="Height" Width="340"
+        FontSize="12">
+
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="RwSurface" Color="#E6161B22"/>
+          <SolidColorBrush x:Key="RwBorder" Color="#30FFFFFF"/>
+          <SolidColorBrush x:Key="RwCard" Color="#14FFFFFF"/>
+          <SolidColorBrush x:Key="RwText" Color="#E6EDF3"/>
+          <SolidColorBrush x:Key="RwMuted" Color="#8B949E"/>
+          <SolidColorBrush x:Key="RwTime" Color="#C9D1D9"/>
+          <SolidColorBrush x:Key="RwTrack" Color="#30FFFFFF"/>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="RwSurface" Color="#F2FFFFFF"/>
+          <SolidColorBrush x:Key="RwBorder" Color="#24000000"/>
+          <SolidColorBrush x:Key="RwCard" Color="#0C000000"/>
+          <SolidColorBrush x:Key="RwText" Color="#1F2328"/>
+          <SolidColorBrush x:Key="RwMuted" Color="#59636E"/>
+          <SolidColorBrush x:Key="RwTime" Color="#31373D"/>
+          <SolidColorBrush x:Key="RwTrack" Color="#1F000000"/>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="ProgressBar">
+      <Setter Property="Height" Value="3"/>
+      <Setter Property="MinHeight" Value="3"/>
+      <Setter Property="MinWidth" Value="0"/>
+      <Setter Property="Minimum" Value="0"/>
+      <Setter Property="Maximum" Value="1"/>
+      <Setter Property="CornerRadius" Value="2"/>
+      <Setter Property="Background" Value="{DynamicResource RwTrack}"/>
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="{DynamicResource RwMuted}"/>
+    </Style>
+    <Style Selector="TextBlock.mono">
+      <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Menlo, DejaVu Sans Mono, monospace"/>
+    </Style>
+  </Window.Styles>
+
+  <Border x:Name="Root" CornerRadius="10" Background="{DynamicResource RwSurface}"
+          BorderBrush="{DynamicResource RwBorder}" BorderThickness="1" Padding="10,8"
+          TextElement.Foreground="{DynamicResource RwText}">
+    <StackPanel>
+
+      <!-- Header: drag to move -->
+      <DockPanel x:Name="HeaderBar" Background="Transparent" Cursor="SizeAll">
+        <TextBlock x:Name="RefreshBtn" DockPanel.Dock="Right" Text="⟳" FontSize="13" Classes="muted"
+                   Cursor="Hand" ToolTip.Tip="{Binding RefreshTooltip}" Margin="6,0,0,0"/>
+        <Ellipse Width="9" Height="9" Fill="{Binding HeaderBrush}" Margin="0,0,7,0" VerticalAlignment="Center"/>
+        <TextBlock Text="{Binding Header}" FontWeight="SemiBold"/>
+      </DockPanel>
+
+      <!-- Runs -->
+      <ItemsControl ItemsSource="{Binding Runs}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:RunVm">
+            <Border Margin="0,6,0,0" Padding="8,6" CornerRadius="6" Background="{DynamicResource RwCard}"
+                    Cursor="Hand" ToolTip.Tip="{Binding Tooltip}" Tag="{Binding}" PointerReleased="Run_PointerReleased">
+              <Border.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="{Binding OpenText}" Command="{Binding OpenCommand}"/>
+                  <MenuItem Header="{Binding RerunText}" Command="{Binding RerunCommand}" IsVisible="{Binding CanRerun}"/>
+                </ContextMenu>
+              </Border.ContextMenu>
+              <StackPanel>
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Right" Text="{Binding TimeText}" Foreground="{DynamicResource RwTime}"
+                             Classes="mono" FontSize="11" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                  <Ellipse Width="8" Height="8" Fill="{Binding StatusBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                  <Border DockPanel.Dock="Right" IsVisible="{Binding BadgeVisible}" Background="{Binding BadgeBrush}"
+                          CornerRadius="3" Padding="4,0" Margin="6,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Badge}" FontSize="9.5" FontWeight="Bold" Foreground="#0D1117"/>
+                  </Border>
+                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                </DockPanel>
+                <TextBlock Text="{Binding Sub}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" Margin="14,1,0,0"/>
+                <!-- Mode=OneWay is required: ProgressBar.Value binds TwoWay by default and Progress has no public setter. -->
+                <ProgressBar Value="{Binding Progress, Mode=OneWay}" Foreground="{Binding StatusBrush}"
+                             IsVisible="{Binding ProgressVisible}" Margin="14,4,0,0"/>
+                <TextBlock Text="{Binding JobsText}" IsVisible="{Binding JobsVisible}" Classes="muted mono"
+                           FontSize="10.5" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="14,3,0,0"/>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <!-- Self-hosted runners -->
+      <StackPanel IsVisible="{Binding RunnersVisible}" Margin="0,8,0,0">
+        <TextBlock Text="{Binding RunnersTitle}" FontSize="9.5" FontWeight="Bold" Foreground="#6E7681"/>
+        <ItemsControl ItemsSource="{Binding Runners}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:RunnerVm">
+              <StackPanel Margin="0,4,0,0">
+                <DockPanel>
+                  <TextBlock DockPanel.Dock="Right" Text="{Binding Detail}" Classes="muted" FontSize="10.5"/>
+                  <Ellipse Width="7" Height="7" Fill="{Binding StatusBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                </DockPanel>
+                <Grid IsVisible="{Binding MetricsVisible}" Margin="13,2,0,0" ColumnDefinitions="*,10,*">
+                  <StackPanel Grid.Column="0">
+                    <TextBlock Text="{Binding CpuText}" FontSize="10" Classes="muted"/>
+                    <ProgressBar Value="{Binding Cpu, Mode=OneWay}" Foreground="#3B9EFF"/>
+                  </StackPanel>
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Text="{Binding RamText}" FontSize="10" Classes="muted"/>
+                    <ProgressBar Value="{Binding Ram, Mode=OneWay}" Foreground="#A371F7"/>
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+
+      <TextBlock Text="{Binding Footer}" Foreground="{Binding FooterBrush}" FontSize="10" Margin="0,6,0,0"
+                 TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Footer}"/>
+    </StackPanel>
+  </Border>
+</Window>

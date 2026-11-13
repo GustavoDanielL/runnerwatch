@@ -5,3 +5,6 @@ out/
 .vs/
 *.zip
 __pycache__/
+artifacts/
+TestResults/
+*.binlog

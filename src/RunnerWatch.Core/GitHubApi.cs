@@ -1,14 +1,10 @@
-using System;
 using System.Collections.Concurrent;
-using System.Linq;
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Text.Json.Serialization.Metadata;
 
-namespace GhActionsMonitor;
+namespace RunnerWatch.Core;
 
 public class GitHubException(HttpStatusCode status, string message) : Exception(message)
 {
@@ -16,23 +12,18 @@ public class GitHubException(HttpStatusCode status, string message) : Exception(
 }
 
 public sealed class RateLimitException(DateTimeOffset reset)
-    : GitHubException(HttpStatusCode.Forbidden, "Rate limit da API do GitHub atingido")
+    : GitHubException(HttpStatusCode.Forbidden, "GitHub API rate limit reached")
 {
     public DateTimeOffset Reset { get; } = reset;
 }
 
 /// <summary>
-/// Cliente mínimo da API REST com cache por ETag: respostas 304 não contam no rate limit
-/// e devolvem o objeto já desserializado da última vez.
+/// Minimal GitHub REST client with an ETag cache: 304 responses don't count against the rate limit
+/// and return the object deserialized last time. Octokit is not used on purpose: it doesn't do
+/// conditional requests out of the box and would add weight to the Native AOT binary.
 /// </summary>
 public sealed class GitHubApi : IDisposable
 {
-    public static readonly JsonSerializerOptions Json = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        PropertyNameCaseInsensitive = true,
-    };
-
     sealed class CacheEntry(string etag, object? value)
     {
         public string ETag { get; } = etag;
@@ -40,15 +31,17 @@ public sealed class GitHubApi : IDisposable
         public DateTimeOffset LastUsed { get; set; } = DateTimeOffset.UtcNow;
     }
 
+    public const string UserAgent = "RunnerWatch/0.2 (+https://github.com/GustavoDanielL/runnerwatch)";
+
     readonly HttpClient _http;
     readonly ConcurrentDictionary<string, CacheEntry> _cache = new();
 
     public int RateRemaining { get; private set; } = -1;
     public DateTimeOffset RateReset { get; private set; }
 
-    public GitHubApi(string token, string baseUrl = "https://api.github.com/")
+    public GitHubApi(string token, string baseUrl = "https://api.github.com/", HttpMessageHandler? handler = null)
     {
-        _http = new HttpClient(new SocketsHttpHandler
+        _http = new HttpClient(handler ?? new SocketsHttpHandler
         {
             AutomaticDecompression = DecompressionMethods.All,
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
@@ -61,10 +54,10 @@ public sealed class GitHubApi : IDisposable
             _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         _http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         _http.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("gh-actions-monitor/0.1");
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
     }
 
-    public async Task<T?> GetAsync<T>(string path, CancellationToken ct = default) where T : class
+    public async Task<T?> GetAsync<T>(string path, JsonTypeInfo<T> type, CancellationToken ct = default) where T : class
     {
         using var req = new HttpRequestMessage(HttpMethod.Get, path);
         _cache.TryGetValue(path, out var cached);
@@ -79,27 +72,39 @@ public sealed class GitHubApi : IDisposable
             return cached.Value as T;
         }
 
-        if (!resp.IsSuccessStatusCode)
-        {
-            if ((resp.StatusCode == HttpStatusCode.Forbidden && RateRemaining == 0) || (int)resp.StatusCode == 429)
-            {
-                var reset = RateReset;
-                if (resp.Headers.RetryAfter?.Delta is { } d) reset = DateTimeOffset.UtcNow + d;
-                if (reset <= DateTimeOffset.UtcNow) reset = DateTimeOffset.UtcNow.AddMinutes(1);
-                throw new RateLimitException(reset);
-            }
-            var body = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            throw new GitHubException(resp.StatusCode, $"{(int)resp.StatusCode} em {path}: {Trim(body)}");
-        }
+        await ThrowIfFailedAsync(resp, path, ct).ConfigureAwait(false);
 
         var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        var value = JsonSerializer.Deserialize<T>(json, Json);
+        var value = JsonSerializer.Deserialize(json, type);
         var etag = resp.Headers.ETag?.ToString();
         if (!string.IsNullOrEmpty(etag)) _cache[path] = new CacheEntry(etag, value);
         return value;
     }
 
-    /// <summary>Remove entradas do cache que não foram usadas há um tempo (runs antigos etc.).</summary>
+    /// <summary>POST without a body (e.g. re-run endpoints).</summary>
+    public async Task PostAsync(string path, CancellationToken ct = default)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, path);
+        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+        ReadRate(resp);
+        await ThrowIfFailedAsync(resp, path, ct).ConfigureAwait(false);
+    }
+
+    async Task ThrowIfFailedAsync(HttpResponseMessage resp, string path, CancellationToken ct)
+    {
+        if (resp.IsSuccessStatusCode) return;
+        if ((resp.StatusCode == HttpStatusCode.Forbidden && RateRemaining == 0) || (int)resp.StatusCode == 429)
+        {
+            var reset = RateReset;
+            if (resp.Headers.RetryAfter?.Delta is { } d) reset = DateTimeOffset.UtcNow + d;
+            if (reset <= DateTimeOffset.UtcNow) reset = DateTimeOffset.UtcNow.AddMinutes(1);
+            throw new RateLimitException(reset);
+        }
+        var body = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        throw new GitHubException(resp.StatusCode, $"{(int)resp.StatusCode} on {path}: {Trim(body)}");
+    }
+
+    /// <summary>Drops cache entries not used for a while (old runs, etc.).</summary>
     public void Prune(TimeSpan olderThan)
     {
         var limit = DateTimeOffset.UtcNow - olderThan;
