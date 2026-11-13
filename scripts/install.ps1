@@ -1,4 +1,4 @@
-<#
+﻿<#
   Instala o GitHub Actions Monitor para o usuário atual (sem admin).
   - Garante .NET SDK 8+ (via winget, se faltar)
   - Compila e copia para %LOCALAPPDATA%\Programs\GhActionsMonitor

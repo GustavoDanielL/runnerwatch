@@ -51,7 +51,7 @@
                   <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                 </DockPanel>
                 <TextBlock Text="{Binding Sub}" Foreground="#8B949E" FontSize="11" TextTrimming="CharacterEllipsis" Margin="14,1,0,0"/>
-                <ProgressBar Value="{Binding Progress}" Foreground="{Binding StatusBrush}"
+                <ProgressBar Value="{Binding Progress, Mode=OneWay}" Foreground="{Binding StatusBrush}"
                              Visibility="{Binding ProgressVisibility}" Margin="14,4,0,0"/>
                 <TextBlock Text="{Binding JobsText}" Visibility="{Binding JobsVisibility}" Foreground="#8B949E"
                            FontSize="10.5" FontFamily="Consolas" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
@@ -82,11 +82,11 @@
                   </Grid.ColumnDefinitions>
                   <StackPanel Grid.Column="0">
                     <TextBlock Text="{Binding CpuText}" FontSize="10" Foreground="#8B949E"/>
-                    <ProgressBar Value="{Binding Cpu}" Foreground="#3B9EFF"/>
+                    <ProgressBar Value="{Binding Cpu, Mode=OneWay}" Foreground="#3B9EFF"/>
                   </StackPanel>
                   <StackPanel Grid.Column="2">
                     <TextBlock Text="{Binding RamText}" FontSize="10" Foreground="#8B949E"/>
-                    <ProgressBar Value="{Binding Ram}" Foreground="#A371F7"/>
+                    <ProgressBar Value="{Binding Ram, Mode=OneWay}" Foreground="#A371F7"/>
                   </StackPanel>
                 </Grid>
               </StackPanel>

@@ -145,7 +145,7 @@ public sealed class ActionsMonitor
         else
         {
             var list = await _api.GetAsync<List<Repo>>(
-                $"user/repos?affiliation=owner&sort=pushed&direction=desc&per_page={_cfg.AutoRepoCount}", ct) ?? new();
+                $"user/repos?affiliation=owner,collaborator,organization_member&sort=pushed&direction=desc&per_page={_cfg.AutoRepoCount}", ct) ?? new();
             _repos = list.Where(r => !r.Archived).Select(r => r.FullName).ToList();
         }
         _reposAt = DateTimeOffset.UtcNow;

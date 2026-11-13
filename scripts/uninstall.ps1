@@ -1,4 +1,4 @@
-<#
+﻿<#
   Remove o GitHub Actions Monitor. Use -Purge para apagar também a config e o token salvo.
 #>
 param([switch]$Purge)

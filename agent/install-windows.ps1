@@ -1,4 +1,4 @@
-<#
+﻿<#
   Instala o agente de métricas numa máquina runner WINDOWS (outra máquina que não a do monitor).
   Se o runner roda no MESMO PC do monitor, não precisa disto: o monitor lê CPU/RAM local sozinho.
   Executar como administrador:  powershell -ExecutionPolicy Bypass -File agent\install-windows.ps1 [-Port 9465] [-Token xyz]
