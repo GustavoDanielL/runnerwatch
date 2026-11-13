@@ -1,61 +1,79 @@
-<div align="center">
-
-<img src="src/RunnerWatch/Assets/icon-256.png" width="88" alt="">
-
 # RunnerWatch
-
-**GitHub Actions num widget discreto, sempre visível.**
-Veja o que está rodando, o que está na fila, o que está *travado*, quando o deploy termina e o quanto seus runners self-hosted estão trabalhando, sem deixar uma aba do navegador aberta.
 
 [![CI](https://github.com/GustavoDanielL/runnerwatch/actions/workflows/ci.yml/badge.svg)](https://github.com/GustavoDanielL/runnerwatch/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/GustavoDanielL/runnerwatch?sort=semver)](https://github.com/GustavoDanielL/runnerwatch/releases/latest)
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue)](LICENSE)
 
-<img src="docs/media/demo.gif" width="380" alt="RunnerWatch mostrando um deploy rodando, fila atrás de runner ocupado, release travada e uma falha">
+Um widget de desktop que mostra as execuções do GitHub Actions dos seus repositórios: o que está rodando, o que está na fila e o que está travado. Também mostra CPU e RAM dos runners self-hosted. Windows, macOS e Linux.
 
-<sub>Gravado com <code>RunnerWatch --demo</code> (dados fictícios). [English](README.md)</sub>
+<img src="docs/media/demo.gif" width="360" alt="RunnerWatch em modo demo: um deploy rodando, um job na fila atrás de um runner ocupado, uma release travada e uma execução com falha">
 
-</div>
-
-## Por quê
-
-A aba Actions do GitHub responde "o que aconteceu?". O RunnerWatch responde **"o que está acontecendo agora, em todos os meus repos?"**, e sabe diferenciar fila normal de problema de verdade:
-
-- **RUNNER OCUPADO**: o seu runner self-hosted está trabalhando em outro job. É capacidade, não pane. Sem alarme.
-- **TRAVADO**: ninguém está pegando o job (runner offline, labels erradas…). Aí você recebe uma notificação.
-
-## Recursos
-
-- ▶ Execuções **rodando** com tempo decorrido e **previsão de término**
-- ⏳ **Fila**: runs aguardando, jobs esperando runner e aprovação de *environment*
-- 🚦 **TRAVADO vs RUNNER OCUPADO**, com notificação só quando trava de verdade
-- 🚀 Selo de **deploy** com o ambiente (`DEPLOY PRODUCTION`) e aviso quando termina
-- ✖ **Falhas** ficam visíveis por 15 min com **Re-executar jobs com falha** (botão direito)
-- 🖥 **CPU/RAM dos runners self-hosted**
-- 🔑 **Sem configurar nada**: usa o `gh`, o Git Credential Manager ou o `GH_TOKEN` que você já tem
-- 🌗 Tema claro/escuro e idioma seguem o sistema
-- 🪶 Binário nativo: abre na hora, não precisa instalar runtime
+[English](README.md)
 
 ## Instalação
 
-| | |
-|---|---|
-| **Windows** (PowerShell) | `irm https://raw.githubusercontent.com/GustavoDanielL/runnerwatch/main/install.ps1 \| iex` |
-| **macOS / Linux** | `curl -fsSL https://raw.githubusercontent.com/GustavoDanielL/runnerwatch/main/install.sh \| sh` |
-| **Scoop** | `scoop install https://raw.githubusercontent.com/GustavoDanielL/runnerwatch/main/packaging/scoop/runnerwatch.json` |
+Windows (PowerShell):
 
-Não precisa de administrador, e os instaladores conferem o SHA-256 antes de instalar.
+```powershell
+irm https://raw.githubusercontent.com/GustavoDanielL/runnerwatch/main/install.ps1 | iex
+```
 
-> **Builds sem assinatura.** No Windows, o SmartScreen pode mostrar *"O Windows protegeu o computador"*: clique em **Mais informações → Executar assim mesmo**. No Mac, use o instalador via `curl`, porque o download pelo navegador é bloqueado pelo Gatekeeper (o app ainda não é notarizado). Toda release é compilada pelo GitHub Actions a partir deste repositório.
+macOS e Linux:
 
-**Só quer ver?** `RunnerWatch --demo` roda com dados fictícios, sem token e sem rede.
+```bash
+curl -fsSL https://raw.githubusercontent.com/GustavoDanielL/runnerwatch/main/install.sh | sh
+```
 
-Autenticação, configuração, métricas dos runners e limitações estão documentadas no [README em inglês](README.md#authentication) e em [docs/configuration.md](docs/configuration.md).
+Scoop:
+
+```powershell
+scoop install https://raw.githubusercontent.com/GustavoDanielL/runnerwatch/main/packaging/scoop/runnerwatch.json
+```
+
+Os scripts instalam para o usuário atual (sem administrador) e conferem o arquivo baixado com o `SHA256SUMS.txt` da release. Também dá para baixar o arquivo direto em [Releases](https://github.com/GustavoDanielL/runnerwatch/releases/latest).
+
+Os binários não têm assinatura de código. No Windows, o SmartScreen pede confirmação na primeira vez (Mais informações → Executar assim mesmo). No macOS, instale com o comando `curl` acima; um zip baixado pelo navegador é bloqueado pelo Gatekeeper porque o app não é notarizado.
+
+Para experimentar sem conectar ao GitHub:
+
+```bash
+RunnerWatch --demo
+```
+
+## O que aparece
+
+- Execuções rodando, com tempo decorrido e uma estimativa baseada na mediana das últimas 10 execuções com sucesso do mesmo workflow.
+- Execuções na fila, jobs esperando runner e execuções aguardando aprovação de environment.
+- Dois tipos de espera, separados:
+  - **RUNNER OCUPADO**: o job espera porque o seu runner self-hosted está trabalhando em outro job. Sem notificação.
+  - **TRAVADO**: nenhum runner pegou o job em 5 minutos (configurável). Envia notificação.
+- Deploys, detectados pelo nome do workflow ou por um deployment criado para o commit. Uma notificação avisa quando terminam.
+- Execuções com falha, por 15 minutos. Clique com o botão direito para re-executar os jobs que falharam.
+- Runners self-hosted, com status e CPU/RAM.
+
+Clique numa execução para abri-la no GitHub. No Windows, `Ctrl+Alt+G` mostra e esconde o widget; no macOS e no Linux, use o ícone da bandeja. O idioma (português ou inglês) e o tema claro/escuro seguem o sistema.
+
+## Autenticação
+
+O RunnerWatch usa a primeira credencial que funcionar, nesta ordem:
+
+1. `GH_TOKEN` ou `GITHUB_TOKEN`
+2. um token salvo pelo app, guardado no cofre do sistema (Gerenciador de Credenciais do Windows, Keychain do macOS, Secret Service no Linux)
+3. `gh auth token`, do [GitHub CLI](https://cli.github.com/)
+4. `git credential fill`, que cobre o Git Credential Manager no Windows
+
+Se nenhuma funcionar, ele pede um token. Chave SSH não serve: a API REST do GitHub não aceita.
+
+Permissões: token clássico precisa do escopo `repo`. Token fine-grained precisa de leitura em Actions, Administration (para listar runners), Deployments e Metadata, e de escrita em Actions para re-executar jobs.
+
+## Configuração, métricas e limitações
+
+Estão no [README em inglês](README.md#configuration) e em [docs/configuration.md](docs/configuration.md): todas as opções, onde ficam os arquivos em cada sistema, o agente de métricas para runners em outras máquinas e os limites conhecidos.
 
 ## Contribuindo
 
-Contribuições são muito bem-vindas, inclusive em português. Comece pelo [CONTRIBUTING.md](CONTRIBUTING.md). Traduzir para um idioma novo é só copiar um arquivo JSON, sem precisar de C#.
+Veja o [CONTRIBUTING.md](CONTRIBUTING.md). Issues e PRs em português são bem-vindos. Com o `--demo` dá para mexer na interface sem token do GitHub, e traduzir para outro idioma é um único arquivo JSON.
 
 ## Licença
 
-[MIT](LICENSE) © Gustavo Daniel e contribuidores. Sem vínculo com o GitHub.
+[MIT](LICENSE). O RunnerWatch não tem vínculo com o GitHub.
