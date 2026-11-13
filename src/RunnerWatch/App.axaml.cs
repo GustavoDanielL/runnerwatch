@@ -43,7 +43,8 @@ public partial class App : Application, IRunActions
         AppDomain.CurrentDomain.UnhandledException += (_, ex) => Log.Fatal("Unhandled exception (process will exit)", ex.ExceptionObject as Exception);
         TaskScheduler.UnobservedTaskException += (_, ex) => { Log.Error("Unobserved task exception", ex.Exception); ex.SetObserved(); };
 
-        _cfg = AppConfig.Load();
+        // The demo keeps its own settings so trying it never changes the real widget's size/position.
+        _cfg = AppConfig.Load(Options.Demo ? Path.Combine(AppConfig.Dir, "config.demo.json") : null);
         L.Init(Options.Language ?? _cfg.Language);
         RequestedThemeVariant = (Options.Theme ?? _cfg.Theme).ToLowerInvariant() switch
         {
@@ -62,6 +63,8 @@ public partial class App : Application, IRunActions
 
         _tray = new Tray(this, _cfg.StartWithSystem);
         _tray.ToggleWindow += ToggleWindow;
+        _tray.ToggleCollapsed += () => { if (!_win.IsVisible) ToggleWindow(); _win.ToggleCollapsed(); };
+        _tray.SizeChosen += s => _win.SetScale(s);
         _tray.Refresh += () => _source?.Kick();
         _tray.OpenConfig += () => OpenPath(_cfg.FilePath);
         _tray.OpenLog += () => OpenPath(File.Exists(Log.FilePath) ? Log.FilePath : Log.Dir);

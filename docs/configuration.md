@@ -8,6 +8,8 @@ The settings file is created on first run:
 | macOS | `~/Library/Application Support/RunnerWatch/config.json` |
 | Linux | `~/.config/RunnerWatch/config.json` |
 
+`--demo` uses a separate `config.demo.json`, so trying the demo never changes these settings.
+
 Open it from the tray icon (**Open settings…**), edit, then choose **Apply settings (restart)**. Comments and trailing commas are allowed. If the file is invalid, RunnerWatch keeps a copy as `config.json.broken` and starts with the defaults.
 
 ## Options
@@ -31,8 +33,10 @@ Open it from the tray icon (**Open settings…**), edit, then choose **Apply set
 | `theme` | `system` | `system`, `dark` or `light`. |
 | `startWithSystem` | `true` | Start at login (also toggled from the tray menu). |
 | `idleOpacity` | `0.6` | Widget opacity when nothing is running (0.2–1). |
-| `width` | `340` | Widget width (260–600). |
-| `left`, `bottom` | — | Saved position in pixels. Delete them to reset to the bottom-right corner. |
+| `width` | `340` | Widget width when expanded (260–700). Drag a side edge to change it. |
+| `scale` | `1.0` | Zoom of the whole widget (0.75–1.75). `Ctrl` + mouse wheel, or tray → Size. |
+| `collapsed` | `false` | Show only the header line. Toggled with the `▾`/`▴` button. |
+| `left`, `bottom` | — | Saved position in pixels. Delete them to put the widget back in the bottom-right corner. |
 
 ## Files
 

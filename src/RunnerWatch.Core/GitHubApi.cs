@@ -31,7 +31,7 @@ public sealed class GitHubApi : IDisposable
         public DateTimeOffset LastUsed { get; set; } = DateTimeOffset.UtcNow;
     }
 
-    public const string UserAgent = "RunnerWatch/0.2 (+https://github.com/GustavoDanielL/runnerwatch)";
+    public const string UserAgent = "RunnerWatch/0.3 (+https://github.com/GustavoDanielL/runnerwatch)";
 
     readonly HttpClient _http;
     readonly ConcurrentDictionary<string, CacheEntry> _cache = new();

@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-11-13
+
+### Added
+- Resize the widget: drag the left or right edge to change the width, and `Ctrl` + mouse wheel (or tray → Size) to scale it.
+- Collapse the widget to a single line above the taskbar with the `▾` button, or from the tray menu.
+- Width, scale and collapsed state are saved.
+- The log records the screen size and scaling, to help with display-related bug reports.
+
+### Fixed
+- Without a saved position, the widget could open in the middle of the screen instead of the bottom-right corner.
+- `--demo` wrote its window size and position into the real settings file; it now uses `config.demo.json`.
+
 ## [0.2.0] - 2026-11-13
 
 First public release, as **RunnerWatch** (previously a private Windows-only tool called GhActionsMonitor).

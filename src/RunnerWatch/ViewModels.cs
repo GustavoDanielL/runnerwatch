@@ -197,8 +197,20 @@ public sealed partial class MainVm : ObservableObject
     [ObservableProperty] public partial IBrush FooterBrush { get; set; }
     [ObservableProperty] public partial bool RunnersVisible { get; set; }
 
+    /// <summary>Collapsed = header line only, sitting just above the taskbar.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsExpanded), nameof(CollapseGlyph), nameof(CollapseTooltip))]
+    public partial bool IsCollapsed { get; set; }
+
+    public bool IsExpanded => !IsCollapsed;
+    public string CollapseGlyph => IsCollapsed ? "▴" : "▾";
+    public string CollapseTooltip => IsCollapsed ? L.T("expand.tooltip") : L.T("collapse.tooltip");
+
+    partial void OnIsCollapsedChanged(bool value) => RunnersVisible = !value && Runners.Count > 0;
+
     public string RunnersTitle => L.T("runners.title");
     public string RefreshTooltip => L.T("refresh.tooltip");
+    public string SizeHint => L.T("size.hint");
     public bool IsDemo { get; init; }
 
     public int RunningCount { get; private set; }
@@ -219,7 +231,7 @@ public sealed partial class MainVm : ObservableObject
     {
         Sync(Runs, s.Runs, v => v.Id, vm => vm.Id, v => new RunVm(v, _actions), (vm, v) => vm.Update(v));
         Sync(Runners, s.Runners, v => v.Name, vm => vm.Name, v => new RunnerVm(v), (vm, v) => vm.Update(v));
-        RunnersVisible = Runners.Count > 0;
+        RunnersVisible = !IsCollapsed && Runners.Count > 0;
 
         var active = s.Runs.Where(r => r.Phase != RunPhase.Failed).ToList();
         RunningCount = active.Count(r => r.Phase == RunPhase.Running);

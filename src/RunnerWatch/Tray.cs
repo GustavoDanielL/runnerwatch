@@ -14,13 +14,20 @@ public sealed class Tray : IDisposable
     readonly Dictionary<Color, WindowIcon> _icons = new();
     readonly NativeMenuItem _startup;
 
-    public event Action? ToggleWindow, Refresh, OpenConfig, OpenLog, Reload, ChangeToken, Exit;
+    public event Action? ToggleWindow, ToggleCollapsed, Refresh, OpenConfig, OpenLog, Reload, ChangeToken, Exit;
+    public event Action<double>? SizeChosen;
     public event Action<bool>? StartupChanged;
 
     public Tray(Application app, bool startWithSystem)
     {
         var menu = new NativeMenu();
         menu.Items.Add(Item(OperatingSystem.IsWindows() ? L.T("tray.toggleHotkey") : L.T("tray.toggle"), () => ToggleWindow?.Invoke()));
+        menu.Items.Add(Item(L.T("tray.collapse"), () => ToggleCollapsed?.Invoke()));
+        var size = new NativeMenu();
+        size.Items.Add(Item(L.T("size.small"), () => SizeChosen?.Invoke(0.85)));
+        size.Items.Add(Item(L.T("size.normal"), () => SizeChosen?.Invoke(1.0)));
+        size.Items.Add(Item(L.T("size.large"), () => SizeChosen?.Invoke(1.25)));
+        menu.Items.Add(new NativeMenuItem(L.T("tray.size")) { Menu = size });
         menu.Items.Add(Item(L.T("tray.refresh"), () => Refresh?.Invoke()));
         menu.Items.Add(new NativeMenuItemSeparator());
         _startup = new NativeMenuItem(L.T("tray.startup")) { ToggleType = MenuItemToggleType.CheckBox, IsChecked = startWithSystem };

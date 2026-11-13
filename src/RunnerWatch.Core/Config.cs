@@ -36,10 +36,16 @@ public sealed class AppConfig
     public bool StartWithSystem { get; set; } = true;
     public double IdleOpacity { get; set; } = 0.6;
     public double Width { get; set; } = 340;
+    /// <summary>Zoom of the whole widget (Ctrl+wheel, or tray → Size). 0.75–1.75.</summary>
+    public double Scale { get; set; } = 1.0;
+    /// <summary>Only the header line is shown, above the taskbar.</summary>
+    public bool Collapsed { get; set; }
 
     // Position: left edge + bottom edge in pixels, so the window grows upwards.
     public int? Left { get; set; }
     public int? Bottom { get; set; }
+
+    public const double MinWidth = 260, MaxWidth = 700, MinScale = 0.75, MaxScale = 1.75;
 
     [JsonIgnore] public string FilePath { get; private set; } = DefaultPath;
 
@@ -91,6 +97,8 @@ public sealed class AppConfig
         cfg.AutoRepoCount = Math.Clamp(cfg.AutoRepoCount, 1, 50);
         cfg.StuckQueueMinutes = Math.Max(1, cfg.StuckQueueMinutes);
         cfg.ShowFailuresMinutes = Math.Clamp(cfg.ShowFailuresMinutes, 0, 24 * 60);
+        cfg.Width = Math.Clamp(cfg.Width, MinWidth, MaxWidth);
+        cfg.Scale = Math.Clamp(double.IsFinite(cfg.Scale) ? cfg.Scale : 1, MinScale, MaxScale);
         if (!File.Exists(path)) cfg.Save();
         return cfg;
     }

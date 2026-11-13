@@ -8,7 +8,7 @@
         TransparencyLevelHint="Transparent"
         Background="Transparent"
         Topmost="True" ShowInTaskbar="False" ShowActivated="False" CanResize="False"
-        SizeToContent="Height" Width="340"
+        SizeToContent="WidthAndHeight"
         FontSize="12">
 
   <Window.Resources>
@@ -54,21 +54,31 @@
     </Style>
   </Window.Styles>
 
+  <!-- Zoom scales everything (Ctrl+wheel / tray → Size); the grips on the sides change the width. -->
+  <LayoutTransformControl x:Name="Zoom">
+  <Panel>
   <Border x:Name="Root" CornerRadius="10" Background="{DynamicResource RwSurface}"
           BorderBrush="{DynamicResource RwBorder}" BorderThickness="1" Padding="10,8"
           TextElement.Foreground="{DynamicResource RwText}">
     <StackPanel>
 
       <!-- Header: drag to move -->
-      <DockPanel x:Name="HeaderBar" Background="Transparent" Cursor="SizeAll">
+      <DockPanel x:Name="HeaderBar" Background="Transparent" Cursor="SizeAll" ToolTip.Tip="{Binding SizeHint}">
+        <!-- Collapse is always the rightmost button so it doesn't move between states.
+             Transparent background + padding = a comfortable click target around the small glyph. -->
+        <TextBlock x:Name="CollapseBtn" DockPanel.Dock="Right" Text="{Binding CollapseGlyph}" FontSize="12" Classes="muted"
+                   Cursor="Hand" ToolTip.Tip="{Binding CollapseTooltip}" Background="Transparent"
+                   Padding="7,2" Margin="2,-2,-6,-2" VerticalAlignment="Center"/>
         <TextBlock x:Name="RefreshBtn" DockPanel.Dock="Right" Text="⟳" FontSize="13" Classes="muted"
-                   Cursor="Hand" ToolTip.Tip="{Binding RefreshTooltip}" Margin="6,0,0,0"/>
+                   Cursor="Hand" ToolTip.Tip="{Binding RefreshTooltip}" Background="Transparent"
+                   Padding="7,2" Margin="4,-2,0,-2" VerticalAlignment="Center"
+                   IsVisible="{Binding IsExpanded}"/>
         <Ellipse Width="9" Height="9" Fill="{Binding HeaderBrush}" Margin="0,0,7,0" VerticalAlignment="Center"/>
-        <TextBlock Text="{Binding Header}" FontWeight="SemiBold"/>
+        <TextBlock Text="{Binding Header}" FontWeight="SemiBold" Margin="0,0,10,0"/>
       </DockPanel>
 
       <!-- Runs -->
-      <ItemsControl ItemsSource="{Binding Runs}">
+      <ItemsControl ItemsSource="{Binding Runs}" IsVisible="{Binding IsExpanded}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:RunVm">
             <Border Margin="0,6,0,0" Padding="8,6" CornerRadius="6" Background="{DynamicResource RwCard}"
@@ -130,8 +140,13 @@
         </ItemsControl>
       </StackPanel>
 
-      <TextBlock Text="{Binding Footer}" Foreground="{Binding FooterBrush}" FontSize="10" Margin="0,6,0,0"
+      <TextBlock Text="{Binding Footer}" Foreground="{Binding FooterBrush}" FontSize="10" Margin="0,6,0,0" IsVisible="{Binding IsExpanded}"
                  TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Footer}"/>
     </StackPanel>
   </Border>
+  <!-- Width grips: invisible 6 px strips on both sides. -->
+  <Border x:Name="LeftGrip" IsVisible="{Binding IsExpanded}" HorizontalAlignment="Left" Width="6" Background="Transparent" Cursor="SizeWestEast"/>
+  <Border x:Name="RightGrip" IsVisible="{Binding IsExpanded}" HorizontalAlignment="Right" Width="6" Background="Transparent" Cursor="SizeWestEast"/>
+  </Panel>
+  </LayoutTransformControl>
 </Window>

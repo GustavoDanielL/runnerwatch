@@ -53,6 +53,14 @@ RunnerWatch --demo
 
 Click a run to open it on GitHub. On Windows, `Ctrl+Alt+G` shows and hides the widget; on macOS and Linux, use the tray icon. The language (English or Portuguese) and the light/dark theme follow the OS.
 
+Size and placement:
+
+- Drag the header to move the widget. Its bottom edge stays put, so it grows upwards as runs appear.
+- Drag the left or right edge to change the width. `Ctrl` + mouse wheel, or tray → Size, scales everything.
+- The `▾` button collapses it to a single line (status dot and counts) above the taskbar; `▴` expands it again. Notifications still arrive while it is collapsed.
+
+All three are remembered between sessions.
+
 ## Authentication
 
 RunnerWatch uses the first credential that works, in this order:

@@ -53,6 +53,14 @@ RunnerWatch --demo
 
 Clique numa execução para abri-la no GitHub. No Windows, `Ctrl+Alt+G` mostra e esconde o widget; no macOS e no Linux, use o ícone da bandeja. O idioma (português ou inglês) e o tema claro/escuro seguem o sistema.
 
+Tamanho e posição:
+
+- Arraste o cabeçalho para mover. A borda de baixo fica fixa, então o widget cresce para cima quando aparecem execuções.
+- Arraste a borda esquerda ou direita para mudar a largura. `Ctrl` + roda do mouse, ou bandeja → Tamanho, aumenta ou diminui tudo.
+- O botão `▾` recolhe o widget a uma linha (bolinha de status e contadores) acima da barra de tarefas; `▴` expande de novo. As notificações continuam chegando com ele recolhido.
+
+As três coisas ficam salvas entre as sessões.
+
 ## Autenticação
 
 O RunnerWatch usa a primeira credencial que funcionar, nesta ordem:
