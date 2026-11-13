@@ -1,0 +1,26 @@
+name: Build
+
+# Compila a cada push/PR. Roda em Linux (EnableWindowsTargeting): mais rápido e barato que windows-latest.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet build src/GhActionsMonitor/GhActionsMonitor.csproj -c Release -warnaserror
+      - name: Agente Python compila
+        run: python3 -m py_compile agent/runner_agent.py

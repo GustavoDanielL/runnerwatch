@@ -70,6 +70,7 @@ public sealed class RunVm : Observable
         Url = v.Url;
 
         if (v.Stuck) { Badge = "TRAVADO"; BadgeBrush = Palette.Stuck; }
+        else if (v.RunnerBusy) { Badge = "RUNNER OCUPADO"; BadgeBrush = Palette.Queued; }
         else if (v.Phase == RunPhase.Waiting) { Badge = "APROVAÇÃO"; BadgeBrush = Palette.Waiting; }
         else if (v.IsDeploy) { Badge = v.DeployEnv != null ? $"DEPLOY {v.DeployEnv}".ToUpperInvariant() : "DEPLOY"; BadgeBrush = Palette.Deploy; }
         else Badge = "";
@@ -87,7 +88,7 @@ public sealed class RunVm : Observable
                 : (j.SelfHosted ? "aguardando self-hosted" : $"aguardando {j.Label ?? "runner"}");
             var m = j.Metrics;
             var res = m == null ? "" : $"  CPU {m.CpuPercent?.ToString("0") ?? "?"}%  RAM {Gb(m.MemUsed)}/{Gb(m.MemTotal)} GB";
-            var icon = j.Stuck ? "⚠" : j.Status == "in_progress" ? "▶" : "⏳";
+            var icon = j.Stuck && !v.RunnerBusy ? "⚠" : j.Status == "in_progress" ? "▶" : "⏳";
             return $"{icon} {j.Name}  [{where}]{res}";
         }).Take(4).ToList();
         if (v.Jobs.Count > 4) lines.Add($"+{v.Jobs.Count - 4} jobs");

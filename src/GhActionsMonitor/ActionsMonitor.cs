@@ -82,6 +82,7 @@ public sealed class ActionsMonitor
                     }
                     catch (GitHubException ex) when (ex is not RateLimitException && ex.Status != HttpStatusCode.Unauthorized)
                     {
+                        Log.Warn($"Falha ao consultar {repo}: {ex.Message}");
                         _repoErrors[repo] = ex.Status == HttpStatusCode.NotFound
                             ? $"{repo}: não encontrado (sem acesso ou token sem escopo 'repo')"
                             : $"{repo}: {ex.Message}";
@@ -104,11 +105,13 @@ public sealed class ActionsMonitor
             catch (RateLimitException rl)
             {
                 _error = $"Rate limit do GitHub esgotado. Volta às {rl.Reset.ToLocalTime():HH:mm}";
+                Log.Warn(_error);
                 delay = Clamp(rl.Reset - DateTimeOffset.UtcNow, TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(15));
             }
             catch (GitHubException ex) when (ex.Status == HttpStatusCode.Unauthorized)
             {
                 _error = "Token recusado pelo GitHub (expirado/revogado).";
+                Log.Warn(_error);
                 Publish();
                 AuthFailed?.Invoke();
                 return;
@@ -116,11 +119,13 @@ public sealed class ActionsMonitor
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
                 _error = "Sem conexão com api.github.com";
+                Log.Warn(_error, ex);
                 delay = TimeSpan.FromSeconds(15);
             }
             catch (Exception ex)
             {
                 _error = "Erro: " + ex.Message;
+                Log.Error("Erro no ciclo de monitoramento", ex);
                 delay = TimeSpan.FromSeconds(15);
             }
 
@@ -147,6 +152,7 @@ public sealed class ActionsMonitor
             var list = await _api.GetAsync<List<Repo>>(
                 $"user/repos?affiliation=owner,collaborator,organization_member&sort=pushed&direction=desc&per_page={_cfg.AutoRepoCount}", ct) ?? new();
             _repos = list.Where(r => !r.Archived).Select(r => r.FullName).ToList();
+            Log.Info("Repos monitorados: " + string.Join(", ", _repos));
         }
         _reposAt = DateTimeOffset.UtcNow;
 
@@ -165,6 +171,26 @@ public sealed class ActionsMonitor
 
         foreach (var run in activeRuns)
             next[run.Id] = await BuildRunViewAsync(repo, run, ct);
+
+        // "Travado" de verdade = ninguém pegando. Se um runner self-hosted deste repo está ocupado
+        // com outro job, a espera é fila normal (capacidade), não runner offline: sem alarme.
+        bool selfHostedBusy = next.Values.Any(v => v.Jobs.Any(j => j.SelfHosted && j.Status == "in_progress"))
+                              || _runners.GetValueOrDefault(repo)?.Any(r => r.Busy) == true;
+        foreach (var v in next.Values)
+        {
+            if (v.Stuck && selfHostedBusy && v.Jobs.Where(j => j.Stuck).All(j => j.SelfHosted))
+            {
+                v.Stuck = false;
+                v.RunnerBusy = true;
+            }
+            if (v.Stuck && _stuckNotified.Add(v.Id))
+            {
+                var sh = v.Jobs.Any(j => j.SelfHosted) && !AnySelfHostedOnline(repo) ? " Nenhum runner self-hosted online." : "";
+                Log.Warn($"Run travado na fila: {repo} · {v.Workflow} (#{v.Id})");
+                Notify?.Invoke("Job parado na fila",
+                    $"{Short(repo)} · {v.Workflow} está na fila há mais de {_cfg.StuckQueueMinutes} min.{sh}", NotifyKind.Warning);
+            }
+        }
 
         // Runs que sumiram da lista de ativos: terminaram (ou caíram para fora da página de 30).
         foreach (var (id, old) in prev)
@@ -221,15 +247,11 @@ public sealed class ActionsMonitor
             });
         }
 
+        if (phase == RunPhase.Queued && jobViews.Any(j => j.Status == "in_progress"))
+            phase = RunPhase.Running;
+
         bool runStuck = jobViews.Any(j => j.Stuck)
                         || (phase == RunPhase.Queued && jobViews.Count == 0 && now - run.CreatedAt > stuckLimit);
-
-        if (runStuck && _stuckNotified.Add(run.Id))
-        {
-            var sh = jobViews.Any(j => j.SelfHosted) && !AnySelfHostedOnline(repo) ? " Nenhum runner self-hosted online." : "";
-            Notify?.Invoke("Job parado na fila",
-                $"{Short(repo)} · {run.Name} está na fila há mais de {_cfg.StuckQueueMinutes} min.{sh}", NotifyKind.Warning);
-        }
 
         // Deploy: pelo nome (regex) ou por um deployment criado para este commit depois que o run começou.
         bool isDeploy = _deployRx.IsMatch(run.Name) || _deployRx.IsMatch(run.DisplayTitle ?? "")
@@ -266,7 +288,9 @@ public sealed class ActionsMonitor
             IsDeploy = isDeploy,
             DeployEnv = env,
             CreatedAt = run.CreatedAt,
-            StartedAt = phase == RunPhase.Running ? (run.RunStartedAt ?? run.CreatedAt) : null,
+            StartedAt = phase == RunPhase.Running
+                ? (run.RunStartedAt ?? jobs.Where(j => j.StartedAt != null).Min(j => j.StartedAt) ?? run.CreatedAt)
+                : null,
             EtaSeconds = eta,
             Url = run.HtmlUrl,
             Stuck = runStuck,
@@ -308,7 +332,7 @@ public sealed class ActionsMonitor
             catch (GitHubException ex) when (ex.Status is HttpStatusCode.Forbidden or HttpStatusCode.NotFound && ex is not RateLimitException)
             {
                 // Listar runners exige admin no repo. Sem permissão: não insiste.
-                _noRunnerAccess.Add(repo);
+                if (_noRunnerAccess.Add(repo)) Log.Info($"Sem permissão para listar runners de {repo} (precisa de admin)");
             }
         }
         foreach (var gone in _runners.Keys.Except(_repos, StringComparer.OrdinalIgnoreCase).ToList())
@@ -321,7 +345,10 @@ public sealed class ActionsMonitor
         _metricsAt = DateTimeOffset.UtcNow;
         var names = _runners.Values.SelectMany(x => x)
             .Where(r => r.Status.Equals("online", StringComparison.OrdinalIgnoreCase))
-            .Select(r => r.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            .Select(r => r.Name)
+            .Concat(_active.Values.SelectMany(d => d.Values).SelectMany(v => v.Jobs)
+                .Where(j => j.SelfHosted && j.RunnerName != null).Select(j => j.RunnerName!))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
         var results = await Task.WhenAll(names.Select(async n => (n, m: await _metrics.GetAsync(n, ct))));
         _runnerMetrics.Clear();
@@ -397,7 +424,7 @@ public sealed class ActionsMonitor
         {
             Id = r.Id, Repo = r.Repo, Workflow = r.Workflow, Title = r.Title, Branch = r.Branch, Event = r.Event,
             Actor = r.Actor, Phase = r.Phase, IsDeploy = r.IsDeploy, DeployEnv = r.DeployEnv, CreatedAt = r.CreatedAt,
-            StartedAt = r.StartedAt, EtaSeconds = r.EtaSeconds, Url = r.Url, Stuck = r.Stuck, Jobs = jobs,
+            StartedAt = r.StartedAt, EtaSeconds = r.EtaSeconds, Url = r.Url, Stuck = r.Stuck, RunnerBusy = r.RunnerBusy, Jobs = jobs,
         };
     }
 

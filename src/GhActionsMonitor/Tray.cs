@@ -16,7 +16,7 @@ public sealed class Tray : IDisposable
     readonly Dictionary<Color, Icon> _icons = new();
     readonly WinForms.ToolStripMenuItem _startup;
 
-    public event Action? ToggleWindow, Refresh, OpenConfig, Reload, ChangeToken, Exit;
+    public event Action? ToggleWindow, Refresh, OpenConfig, OpenLog, Reload, ChangeToken, Exit;
     public event Action<bool>? StartupChanged;
 
     public Tray(bool startWithWindows)
@@ -29,6 +29,7 @@ public sealed class Tray : IDisposable
         _startup.CheckedChanged += (_, _) => StartupChanged?.Invoke(_startup.Checked);
         menu.Items.Add(_startup);
         menu.Items.Add("Abrir configuração…", null, (_, _) => OpenConfig?.Invoke());
+        menu.Items.Add("Abrir log de erros…", null, (_, _) => OpenLog?.Invoke());
         menu.Items.Add("Aplicar configuração (reiniciar)", null, (_, _) => Reload?.Invoke());
         menu.Items.Add("Trocar token do GitHub…", null, (_, _) => ChangeToken?.Invoke());
         menu.Items.Add(new WinForms.ToolStripSeparator());

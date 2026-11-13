@@ -99,19 +99,44 @@ public partial class MainWindow : Window
         }
         Left = left;
         _bottom = bottom;
-        Top = _bottom - ActualHeight;
+        Reposition();
     }
 
     void OnSizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (!IsLoaded) return;
-        Top = Math.Max(SystemParameters.VirtualScreenTop, _bottom - ActualHeight);
+        Reposition();
+    }
+
+    /// <summary>Ancora pelo fundo, mas nunca deixa a janela sob a barra de tarefas nem fora do monitor.</summary>
+    void Reposition()
+    {
+        var wa = WorkAreaAt(Left + Width / 2, _bottom - 1);
+        var bottom = Math.Min(_bottom, wa.Bottom);
+        Top = Math.Max(wa.Top, bottom - ActualHeight);
+        Left = Math.Clamp(Left, wa.Left, Math.Max(wa.Left, wa.Right - Width));
+    }
+
+    /// <summary>Área útil (sem barra de tarefas) do monitor que contém o ponto, em unidades WPF.</summary>
+    Rect WorkAreaAt(double x, double y)
+    {
+        var src = PresentationSource.FromVisual(this);
+        if (src?.CompositionTarget == null) return SystemParameters.WorkArea;
+        var toDevice = src.CompositionTarget.TransformToDevice;
+        var fromDevice = src.CompositionTarget.TransformFromDevice;
+        var p = toDevice.Transform(new Point(x, y));
+        var wa = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)p.X, (int)p.Y)).WorkingArea;
+        var tl = fromDevice.Transform(new Point(wa.Left, wa.Top));
+        var br = fromDevice.Transform(new Point(wa.Right, wa.Bottom));
+        return new Rect(tl, br);
     }
 
     void Header_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ButtonState != MouseButtonState.Pressed || ReferenceEquals(e.OriginalSource, RefreshBtn)) return;
         try { DragMove(); } catch (InvalidOperationException) { return; }
+        _bottom = Top + ActualHeight;
+        Reposition();
         _bottom = Top + ActualHeight;
         _saveDebounce.Stop();
         _saveDebounce.Start();

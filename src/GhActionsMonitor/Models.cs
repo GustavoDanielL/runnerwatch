@@ -62,7 +62,9 @@ public sealed class RunView
     public DateTimeOffset? StartedAt { get; init; }
     public double? EtaSeconds { get; init; }
     public required string Url { get; init; }
-    public bool Stuck { get; init; }
+    public bool Stuck { get; set; }
+    /// <summary>Na fila porque o runner self-hosted está ocupado com outro job (não é travamento).</summary>
+    public bool RunnerBusy { get; set; }
     public List<JobView> Jobs { get; init; } = new();
 }
 
