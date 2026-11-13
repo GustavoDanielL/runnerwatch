@@ -1,0 +1,27 @@
+// Copie para %APPDATA%\GhActionsMonitor\config.json (o app cria um com os padrões na 1ª execução).
+// Comentários são permitidos.
+{
+  // Vazio = monitora automaticamente os seus N repos com push mais recente.
+  "repos": [],                       // ex.: ["seu-usuario/api", "seu-usuario/site"]
+  "autoRepoCount": 10,
+  "apiBaseUrl": "https://api.github.com/",   // GitHub Enterprise: "https://ghe.empresa.com/api/v3/"
+
+  "activePollSeconds": 10,           // repo com algo rodando
+  "idlePollSeconds": 60,             // repo parado
+
+  "deployPattern": "deploy|release|publish|prod",
+  "stuckQueueMinutes": 5,
+  "notifications": true,
+  "onlyMine": false,
+
+  // CPU/RAM dos runners self-hosted
+  "agentUrlTemplate": "http://{runner}:9465",   // "" desliga
+  "agents": {
+    // "nome-do-runner": "http://192.168.0.50:9465"
+  },
+  "agentToken": null,
+
+  "startWithWindows": true,
+  "idleOpacity": 0.6,
+  "width": 340
+}

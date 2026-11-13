@@ -1,0 +1,45 @@
+name: Release
+
+# Gera o .exe pronto ao criar uma tag v* (ex.: git tag v0.1.0 && git push --tags).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # Pequeno (~1 MB): precisa do .NET 8 Desktop Runtime instalado.
+      - name: Publish (framework-dependent)
+        run: dotnet publish src/GhActionsMonitor/GhActionsMonitor.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=none -o out/small
+
+      # Grande (~70 MB): roda em qualquer Windows sem instalar nada.
+      - name: Publish (self-contained)
+        run: dotnet publish src/GhActionsMonitor/GhActionsMonitor.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o out/full
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Compress-Archive out/small/* GhActionsMonitor-win-x64.zip
+          Compress-Archive out/full/*  GhActionsMonitor-win-x64-standalone.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GhActionsMonitor
+          path: '*.zip'
+
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create ${{ github.ref_name }} *.zip --generate-notes
