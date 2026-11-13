@@ -1,0 +1,43 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting! Português também é bem-vindo.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Does it also happen with `RunnerWatch --demo`?
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`RunnerWatch --version`"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options: [Windows, macOS (Apple Silicon), macOS (Intel), Linux]
+    validations:
+      required: true
+  - type: input
+    id: osdetail
+    attributes:
+      label: OS version / desktop environment
+      placeholder: Windows 11 24H2, macOS 15.2, Ubuntu 24.04 GNOME…
+  - type: textarea
+    id: log
+    attributes:
+      label: Log excerpt
+      description: Tray icon → Open error log. Remove repo names you don't want to share. Tokens are never logged.
+      render: text

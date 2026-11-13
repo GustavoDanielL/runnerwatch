@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Agente de métricas para runners self-hosted do GitHub Actions.
+Metrics agent for GitHub Actions self-hosted runners (part of RunnerWatch).
 
-Expõe GET /metrics -> {"cpu_percent", "mem_used", "mem_total", "hostname"}.
-Só biblioteca padrão. Funciona em Linux e Windows (macOS: só RAM total).
+Serves GET /metrics -> {"cpu_percent", "mem_used", "mem_total", "hostname"}.
+Standard library only. Works on Linux and Windows (macOS: total RAM only).
 
-Uso:
+Usage:
     python3 runner_agent.py [--host 0.0.0.0] [--port 9465] [--token SEGREDO]
-    (o token também pode vir de RUNNER_AGENT_TOKEN)
+    (the token can also come from RUNNER_AGENT_TOKEN)
 
-Expõe apenas CPU/RAM agregados da máquina. Mesmo assim, se a máquina estiver em rede
-não confiável, use --token ou --host 127.0.0.1 + túnel/VPN.
+Only aggregate machine CPU/RAM is exposed. Still, on an untrusted network use --token,
+or --host 127.0.0.1 behind a tunnel/VPN.
 """
 import argparse
 import hmac
@@ -68,7 +68,7 @@ def _linux_cpu():
     with open("/proc/stat") as f:
         parts = [int(x) for x in f.readline().split()[1:]]
     idle = parts[3] + (parts[4] if len(parts) > 4 else 0)  # idle + iowait
-    total = sum(parts[:8])  # ignora guest (já contado em user)
+    total = sum(parts[:8])  # skip guest (already counted in user)
     return idle, total
 
 
@@ -107,7 +107,7 @@ def _windows_readers():
         i, k, u = FILETIME(), FILETIME(), FILETIME()
         if not k32.GetSystemTimes(ctypes.byref(i), ctypes.byref(k), ctypes.byref(u)):
             return None
-        return ft(i), ft(k) + ft(u)  # kernel já inclui idle
+        return ft(i), ft(k) + ft(u)  # kernel time already includes idle
 
     def mem():
         m = MEMORYSTATUSEX()

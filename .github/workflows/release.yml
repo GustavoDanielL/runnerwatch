@@ -1,6 +1,6 @@
 name: Release
 
-# Gera o .exe pronto ao criar uma tag v* (ex.: git tag v0.1.0 && git push --tags).
+# Push a tag like v0.2.0 to publish native (AOT) builds for Windows, Linux and macOS.
 on:
   push:
     tags: ['v*']
@@ -9,37 +9,81 @@ on:
 permissions:
   contents: write
 
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
 jobs:
-  build:
-    runs-on: windows-latest
+  publish:
+    name: ${{ matrix.rid }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: win-x64,     os: windows-latest, archive: zip }
+          - { rid: win-arm64,   os: windows-latest, archive: zip }
+          - { rid: linux-x64,   os: ubuntu-latest,  archive: tar.gz }
+          - { rid: linux-arm64, os: ubuntu-24.04-arm, archive: tar.gz }
+          - { rid: osx-arm64,   os: macos-latest,   archive: zip }
+          - { rid: osx-x64,     os: macos-latest,   archive: zip }
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '8.0.x'
+          global-json-file: global.json
 
-      # Pequeno (~1 MB): precisa do .NET 8 Desktop Runtime instalado.
-      - name: Publish (framework-dependent)
-        run: dotnet publish src/GhActionsMonitor/GhActionsMonitor.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=none -o out/small
+      - name: Native AOT prerequisites (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
 
-      # Grande (~70 MB): roda em qualquer Windows sem instalar nada.
-      - name: Publish (self-contained)
-        run: dotnet publish src/GhActionsMonitor/GhActionsMonitor.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o out/full
+      - name: Publish (Native AOT)
+        shell: bash
+        run: >
+          dotnet publish src/RunnerWatch/RunnerWatch.csproj -c Release -r ${{ matrix.rid }}
+          -p:PublishAot=true -p:DebugType=none -p:StripSymbols=true -o out/${{ matrix.rid }}
 
-      - name: Package
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
+        run: Compress-Archive -Path out/${{ matrix.rid }}/* -DestinationPath RunnerWatch-${{ matrix.rid }}.zip
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
         run: |
-          Compress-Archive out/small/* GhActionsMonitor-win-x64.zip
-          Compress-Archive out/full/*  GhActionsMonitor-win-x64-standalone.zip
+          cp packaging/linux/runnerwatch.desktop src/RunnerWatch/Assets/icon-256.png out/${{ matrix.rid }}/
+          tar -C out/${{ matrix.rid }} -czf RunnerWatch-${{ matrix.rid }}.tar.gz .
 
-      - uses: actions/upload-artifact@v4
+      - name: Package (macOS .app)
+        if: runner.os == 'macOS'
+        run: |
+          packaging/macos/make-app.sh out/${{ matrix.rid }} "${GITHUB_REF_NAME#v}" RunnerWatch.app
+          ditto -c -k --keepParent RunnerWatch.app RunnerWatch-${{ matrix.rid }}.zip
+
+      - uses: actions/upload-artifact@v7
         with:
-          name: GhActionsMonitor
-          path: '*.zip'
+          name: RunnerWatch-${{ matrix.rid }}
+          path: RunnerWatch-${{ matrix.rid }}.${{ matrix.archive }}
+          if-no-files-found: error
 
-      - name: GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum RunnerWatch-* > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create ${{ github.ref_name }} *.zip --generate-notes
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "RunnerWatch $GITHUB_REF_NAME" \
+            --notes-file packaging/release-notes.md \
+            --generate-notes

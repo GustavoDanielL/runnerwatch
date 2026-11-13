@@ -45,7 +45,7 @@ public partial class App : Application, IRunActions
 
         _cfg = AppConfig.Load();
         L.Init(Options.Language ?? _cfg.Language);
-        RequestedThemeVariant = _cfg.Theme.ToLowerInvariant() switch
+        RequestedThemeVariant = (Options.Theme ?? _cfg.Theme).ToLowerInvariant() switch
         {
             "dark" => ThemeVariant.Dark,
             "light" => ThemeVariant.Light,

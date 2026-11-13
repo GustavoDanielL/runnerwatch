@@ -3,12 +3,12 @@ using RunnerWatch.Core;
 
 namespace RunnerWatch;
 
-public sealed record Options(bool Demo, string? RecordDir, int RecordSeconds, string? Language)
+public sealed record Options(bool Demo, string? RecordDir, int RecordSeconds, string? Language, string? Theme = null)
 {
     public static Options Parse(string[] args)
     {
         bool demo = false;
-        string? record = null, lang = null;
+        string? record = null, lang = null, theme = null;
         int seconds = 45;
         for (int i = 0; i < args.Length; i++)
         {
@@ -18,9 +18,10 @@ public sealed record Options(bool Demo, string? RecordDir, int RecordSeconds, st
                 case "--record" when i + 1 < args.Length: record = args[++i]; demo = true; break;
                 case "--record-seconds" when i + 1 < args.Length && int.TryParse(args[i + 1], out var s): seconds = s; i++; break;
                 case "--lang" when i + 1 < args.Length: lang = args[++i]; break;
+                case "--theme" when i + 1 < args.Length: theme = args[++i]; break;
             }
         }
-        return new Options(demo, record, seconds, lang);
+        return new Options(demo, record, seconds, lang, theme);
     }
 }
 
@@ -31,6 +32,7 @@ public static class Program
 
           --demo                 fake data, no token or network (great for trying it out / UI work)
           --lang <code>          force a language (en, pt-BR, …); default follows the OS
+          --theme <name>         system, dark or light (overrides the config)
           --record <dir>         demo + save PNG frames of the widget to <dir> (README GIF)
           --record-seconds <n>   how long to record (default 45)
           --version              print the version

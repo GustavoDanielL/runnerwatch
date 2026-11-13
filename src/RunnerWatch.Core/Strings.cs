@@ -20,6 +20,9 @@ public static class L
 
     public static string Language { get; private set; } = "en";
 
+    /// <summary>Culture of the UI language, for numbers in UI text (so English UI never shows "9,4 GB").</summary>
+    public static CultureInfo Culture { get; private set; } = CultureInfo.GetCultureInfo("en");
+
     /// <summary>Language codes shipped in the binary (e.g. "en", "pt-BR").</summary>
     public static IReadOnlyList<string> Available { get; } = typeof(L).Assembly.GetManifestResourceNames()
         .Where(n => n.StartsWith("i18n.", StringComparison.Ordinal) && n.EndsWith(".json", StringComparison.Ordinal))
@@ -33,6 +36,7 @@ public static class L
         var code = Resolve(preferred, culture ?? CultureInfo.CurrentUICulture);
         Language = code;
         _cur = code == "en" ? En : Load(code) ?? En;
+        Culture = CultureInfo.GetCultureInfo(code);
     }
 
     internal static string Resolve(string? preferred, CultureInfo culture)
@@ -54,7 +58,7 @@ public static class L
         _cur.TryGetValue(key, out var v) ? v : En.TryGetValue(key, out var e) ? e : key;
 
     public static string F(string key, params object?[] args) =>
-        string.Format(CultureInfo.CurrentCulture, T(key), args);
+        string.Format(Culture, T(key), args);
 
     internal static Dictionary<string, string>? Load(string code)
     {

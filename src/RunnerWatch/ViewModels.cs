@@ -95,7 +95,7 @@ public sealed partial class RunVm : ObservableObject
                 ? (j.SelfHosted ? $"self:{j.RunnerName}" : $"hosted:{j.Label ?? j.RunnerName}")
                 : (j.SelfHosted ? L.T("job.waitingSelf") : L.F("job.waiting", j.Label ?? L.T("job.runner")));
             var m = j.Metrics;
-            var res = m == null ? "" : $"  CPU {m.CpuPercent?.ToString("0") ?? "?"}%  RAM {Gb(m.MemUsed)}/{Gb(m.MemTotal)} GB";
+            var res = m == null ? "" : $"  CPU {m.CpuPercent?.ToString("0", L.Culture) ?? "?"}%  RAM {Gb(m.MemUsed)}/{Gb(m.MemTotal)} GB";
             var icon = j.Stuck && !v.RunnerBusy ? "⚠" : j.Status == "in_progress" ? "▶" : "⏳";
             return $"{icon} {j.Name}  [{where}]{res}";
         }).Take(4).ToList();
@@ -138,7 +138,7 @@ public sealed partial class RunVm : ObservableObject
         }
     }
 
-    static string Gb(long? b) => b is { } v ? (v / 1073741824.0).ToString("0.0") : "?";
+    static string Gb(long? b) => b is { } v ? (v / 1073741824.0).ToString("0.0", L.Culture) : "?";
 }
 
 public sealed partial class RunnerVm : ObservableObject
@@ -170,9 +170,9 @@ public sealed partial class RunnerVm : ObservableObject
         if (m != null)
         {
             Cpu = (m.CpuPercent ?? 0) / 100.0;
-            CpuText = m.CpuPercent is { } c ? $"CPU {c:0}%" : "CPU ?";
+            CpuText = m.CpuPercent is { } c ? string.Create(L.Culture, $"CPU {c:0}%") : "CPU ?";
             Ram = m.MemTotal is > 0 && m.MemUsed is { } u ? (double)u / m.MemTotal.Value : 0;
-            RamText = m.MemTotal is > 0 ? $"RAM {m.MemUsed / 1073741824.0:0.0}/{m.MemTotal / 1073741824.0:0.0} GB" : "RAM ?";
+            RamText = m.MemTotal is > 0 ? string.Create(L.Culture, $"RAM {m.MemUsed / 1073741824.0:0.0}/{m.MemTotal / 1073741824.0:0.0} GB") : "RAM ?";
             MetricsVisible = true;
         }
         else

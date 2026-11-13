@@ -40,7 +40,8 @@ public sealed class GlobalHotkey : IDisposable
             while (GetMessage(out var msg, IntPtr.Zero, 0, 0) > 0)
                 if (msg.message == WM_HOTKEY && msg.wParam == HotkeyId) onPressed();
             UnregisterHotKey(IntPtr.Zero, HotkeyId);
-        }) { IsBackground = true, Name = "GlobalHotkey" };
+        })
+        { IsBackground = true, Name = "GlobalHotkey" };
         _thread.Start();
     }
 

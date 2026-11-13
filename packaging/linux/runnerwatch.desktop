@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=RunnerWatch
+GenericName=GitHub Actions monitor
+Comment=Live GitHub Actions runs, queues and self-hosted runners in a tiny widget
+Exec=runnerwatch
+Icon=runnerwatch
+Categories=Development;Monitor;
+Keywords=github;actions;ci;runner;
+StartupNotify=false
