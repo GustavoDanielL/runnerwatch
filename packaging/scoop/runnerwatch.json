@@ -6,11 +6,11 @@
     "architecture": {
         "64bit": {
             "url": "https://github.com/GustavoDanielL/runnerwatch/releases/download/v0.2.0/RunnerWatch-win-x64.zip",
-            "hash": "HASH_WIN_X64"
+            "hash": "7172c29cfff1fd5985da1ce68f666d9454a145f2e9a00a2d8f031302da45e7ea"
         },
         "arm64": {
             "url": "https://github.com/GustavoDanielL/runnerwatch/releases/download/v0.2.0/RunnerWatch-win-arm64.zip",
-            "hash": "HASH_WIN_ARM64"
+            "hash": "4a664bc9ece347730391cbda629557618fedd86bd0deb5f14e14a18d34fb693d"
         }
     },
     "bin": "RunnerWatch.exe",
