@@ -65,16 +65,33 @@ public sealed class ActionsMonitor : ISnapshotSource
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
             catch (GitHubException ex) when (ex.Status == HttpStatusCode.Unauthorized)
             {
-                _error = L.T("error.tokenRejected");
-                Log.Warn(_error);
-                Publish();
-                AuthFailed?.Invoke();
-                return;
+                // A 401 from one endpoint isn't proof the token is dead: confirm with /user before giving up on it.
+                if (await TokenStillValidAsync(ct))
+                {
+                    Log.Warn($"401 from an endpoint while the token is valid; continuing: {ex.Message}");
+                    _error = L.F("error.generic", ex.Message);
+                    delay = TimeSpan.FromSeconds(30);
+                }
+                else
+                {
+                    _error = L.T("error.tokenRejected");
+                    Log.Warn(_error);
+                    Publish();
+                    AuthFailed?.Invoke();
+                    return;
+                }
             }
 
             Publish();
             try { await Task.Delay(delay, ct); } catch (OperationCanceledException) { return; }
         }
+    }
+
+    async Task<bool> TokenStillValidAsync(CancellationToken ct)
+    {
+        try { return await _api.GetAsync("user", GitHubJson.Default.GhUser, ct) != null; }
+        catch (GitHubException ex) when (ex.Status == HttpStatusCode.Unauthorized) { return false; }
+        catch (Exception ex) when (ex is not OperationCanceledException) { return true; } // network blip: don't drop the token
     }
 
     /// <summary>One polling cycle. Returns how long to wait before the next one. 401 propagates.</summary>

@@ -22,6 +22,7 @@ First public release, as **RunnerWatch** (previously a private Windows-only tool
 - Repositories from organizations and collaborations were ignored by auto-discovery.
 - A run reported as "queued" while one of its jobs was already running was counted as queued.
 - The widget could end up under the taskbar.
+- A renamed or transferred repository made the app report "token rejected": redirects dropped the Authorization header, and any 401 was treated as a revoked token. Redirects are now followed on the same host only, and a 401 is confirmed with `/user` before asking for a new token.
 
 ### Migration
 - Settings and the saved token from GhActionsMonitor are migrated automatically on Windows; the old binary and autostart entry are removed by the installer.

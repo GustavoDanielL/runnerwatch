@@ -174,3 +174,74 @@ public class DemoTests
         Assert.DoesNotContain(demo.Build().Runs, r => r.Phase == RunPhase.Failed);
     }
 }
+
+public class RedirectAndAuthTests
+{
+    static HttpResponseMessage Redirect(string to)
+    {
+        var r = new HttpResponseMessage(HttpStatusCode.MovedPermanently);
+        r.Headers.Location = new Uri(to);
+        return r;
+    }
+
+    [Fact]
+    public async Task Renamed_repo_redirect_is_followed_with_the_token()
+    {
+        // Regression: the built-in redirect handling dropped Authorization, so a renamed repo answered 401
+        // and the app concluded the token had been revoked.
+        var gh = new FakeGitHub()
+            .Route("repos/me/old-name", _ => Redirect("https://api.github.com/repositories/42"))
+            .Route("repositories/42", req => req.Headers.Authorization != null
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"login":"octocat"}""") }
+                : new HttpResponseMessage(HttpStatusCode.Unauthorized) { Content = new StringContent("{}") });
+        using var api = new GitHubApi("token", "https://api.github.com/", gh);
+
+        var user = await api.GetAsync("repos/me/old-name", GitHubJson.Default.GhUser, TestContext.Current.CancellationToken);
+
+        Assert.Equal("octocat", user?.Login);
+        Assert.Equal(2, gh.Requests.Count);
+    }
+
+    [Fact]
+    public async Task Redirect_to_another_host_is_not_followed()
+    {
+        var gh = new FakeGitHub().Route("repos/me/x", _ => Redirect("https://evil.example.com/steal"));
+        using var api = new GitHubApi("token", "https://api.github.com/", gh);
+
+        await Assert.ThrowsAsync<GitHubException>(() => api.GetAsync("repos/me/x", GitHubJson.Default.GhUser, TestContext.Current.CancellationToken));
+        Assert.Single(gh.Requests); // the token never left api.github.com
+    }
+
+    [Fact]
+    public async Task A_401_from_one_repo_does_not_mean_the_token_is_revoked()
+    {
+        var gh = new FakeGitHub()
+            .Status("repos/acme/api/actions/runs", HttpStatusCode.Unauthorized)
+            .Json("user", """{"login":"octocat"}""");
+        var cfg = new AppConfig { Repos = ["acme/api"] };
+        var monitor = new ActionsMonitor(cfg, new GitHubApi("t", "https://api.github.com/", gh), null, "octocat");
+        bool authFailed = false;
+        monitor.AuthFailed += () => authFailed = true;
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(2));
+
+        await monitor.RunAsync(cts.Token);
+
+        Assert.False(authFailed);
+    }
+
+    [Fact]
+    public async Task A_real_revoked_token_raises_AuthFailed()
+    {
+        var gh = new FakeGitHub()
+            .Status("repos/acme/api/actions/runs", HttpStatusCode.Unauthorized)
+            .Status("user", HttpStatusCode.Unauthorized);
+        var monitor = new ActionsMonitor(new AppConfig { Repos = ["acme/api"] }, new GitHubApi("t", "https://api.github.com/", gh), null, "octocat");
+        bool authFailed = false;
+        monitor.AuthFailed += () => authFailed = true;
+
+        await monitor.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(authFailed);
+    }
+}

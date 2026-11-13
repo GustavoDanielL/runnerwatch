@@ -43,6 +43,14 @@ jobs:
           dotnet publish src/RunnerWatch/RunnerWatch.csproj -c Release -r ${{ matrix.rid }}
           -p:PublishAot=true -p:DebugType=none -p:StripSymbols=true -o out/${{ matrix.rid }}
 
+      - name: Drop debug symbols
+        # Native libraries ship .pdb files (~100 MB) and StripSymbols leaves .dbg/.dSYM next to the binary.
+        shell: bash
+        run: |
+          cd out/${{ matrix.rid }}
+          rm -rf ./*.pdb ./*.dbg ./*.dSYM
+          ls -la
+
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh

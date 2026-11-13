@@ -45,6 +45,9 @@ public sealed class GitHubApi : IDisposable
         {
             AutomaticDecompression = DecompressionMethods.All,
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+            // Redirects are followed by SendAsync below: the built-in handler drops the Authorization
+            // header on redirect, so a renamed repo (301) would come back as 401 and look like a revoked token.
+            AllowAutoRedirect = false,
         })
         {
             BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/"),
@@ -59,12 +62,8 @@ public sealed class GitHubApi : IDisposable
 
     public async Task<T?> GetAsync<T>(string path, JsonTypeInfo<T> type, CancellationToken ct = default) where T : class
     {
-        using var req = new HttpRequestMessage(HttpMethod.Get, path);
         _cache.TryGetValue(path, out var cached);
-        if (cached != null) req.Headers.TryAddWithoutValidation("If-None-Match", cached.ETag);
-
-        using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
-        ReadRate(resp);
+        using var resp = await SendAsync(HttpMethod.Get, path, cached?.ETag, ct).ConfigureAwait(false);
 
         if (resp.StatusCode == HttpStatusCode.NotModified && cached != null)
         {
@@ -84,10 +83,35 @@ public sealed class GitHubApi : IDisposable
     /// <summary>POST without a body (e.g. re-run endpoints).</summary>
     public async Task PostAsync(string path, CancellationToken ct = default)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Post, path);
-        using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
-        ReadRate(resp);
+        using var resp = await SendAsync(HttpMethod.Post, path, null, ct).ConfigureAwait(false);
         await ThrowIfFailedAsync(resp, path, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends a request and follows up to 3 redirects (renamed/transferred repos) keeping the token, but only
+    /// to the same host as the API: the token is never sent to another origin.
+    /// </summary>
+    async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, string? etag, CancellationToken ct)
+    {
+        var uri = new Uri(_http.BaseAddress!, path);
+        for (int hop = 0; ; hop++)
+        {
+            using var req = new HttpRequestMessage(method, uri);
+            if (etag != null) req.Headers.TryAddWithoutValidation("If-None-Match", etag);
+            var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
+            ReadRate(resp);
+
+            var code = (int)resp.StatusCode;
+            if (code is not (301 or 302 or 307 or 308) || resp.Headers.Location is not { } location || hop >= 3)
+                return resp;
+
+            var next = location.IsAbsoluteUri ? location : new Uri(uri, location);
+            if (!string.Equals(next.Host, _http.BaseAddress!.Host, StringComparison.OrdinalIgnoreCase) || next.Scheme != Uri.UriSchemeHttps)
+                return resp; // never forward the token to another origin
+            resp.Dispose();
+            uri = next;
+            if (code is 301 or 302 && method == HttpMethod.Post) method = HttpMethod.Get; // RFC 9110 semantics
+        }
     }
 
     async Task ThrowIfFailedAsync(HttpResponseMessage resp, string path, CancellationToken ct)
