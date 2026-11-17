@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.3.2] - 2026-11-17
+
+### Fixed
+- With a saved position, the widget could open far from it (e.g. in the middle of the screen) and stay there: the first layout pass reports a provisional size, and the "keep it on screen" clamp was applied to the current position. The widget now keeps the position you chose separately and always returns to it once the real size is known.
+- The bottom edge could drift when the content grew: repositioning ran before the native window finished resizing.
+
 ## [0.3.1] - 2026-11-17
 
 ### Fixed

@@ -14,7 +14,12 @@ public partial class MainWindow : Window
     readonly DispatcherTimer _tick = null!;
     readonly DispatcherTimer _saveDebounce = null!;
     bool _hover;
-    int _bottom; // bottom edge in pixels: the window is anchored there and grows upwards
+    // Where the user wants the widget (pixels): left edge and bottom edge (it grows upwards). The actual Position is
+    // derived from these every time, so a provisional size during startup or a zoom change can't push the widget
+    // away for good: once the real size arrives it goes back to the chosen spot.
+    int _left;
+    int _bottom;
+    bool _repositionQueued;
     bool _placed;
     // Until the user drags it, the widget sticks to the right edge of the work area. The first layout pass
     // reports a provisional (too wide) size, so a left position computed at open time would be wrong.
@@ -58,7 +63,7 @@ public partial class MainWindow : Window
         Opened += (_, _) => { HideFromAltTab(); PlaceInitially(); UpdateOpacity(); };
         PropertyChanged += (_, e) =>
         {
-            if (e.Property == BoundsProperty && _placed) Reposition();
+            if (e.Property == BoundsProperty && _placed) QueueReposition();
             else if (e.Property == SizeToContentProperty && SizeToContent != SizeToContent.WidthAndHeight) KeepSizingToContent();
         };
         Closed += (_, _) => _tick.Stop();
@@ -90,15 +95,24 @@ public partial class MainWindow : Window
             bottom = wa.Bottom - margin;
         }
         _anchorRight = _cfg.Left == null;
-        Position = new PixelPoint(left, Position.Y);
+        _left = left;
         _bottom = bottom;
         _placed = true;
         Reposition();
     }
 
+    // Bounds changes arrive before the native window has finished resizing; repositioning right away used a stale size
+    // (the bottom edge drifted by the difference). Coalesce them and run after layout settles.
+    void QueueReposition()
+    {
+        if (_repositionQueued) return;
+        _repositionQueued = true;
+        Dispatcher.UIThread.Post(() => { _repositionQueued = false; Reposition(); }, DispatcherPriority.Background);
+    }
+
     void Reposition()
     {
-        var screen = Screens.ScreenFromPoint(new PixelPoint(Position.X + 10, _bottom - 1)) ?? Screens.ScreenFromWindow(this);
+        var screen = Screens.ScreenFromPoint(new PixelPoint(_left + 10, _bottom - 1)) ?? Screens.ScreenFromWindow(this);
         if (screen == null) return;
         var wa = screen.WorkingArea;
         int heightPx = (int)Math.Ceiling(Bounds.Height * screen.Scaling);
@@ -107,7 +121,7 @@ public partial class MainWindow : Window
         int top = Math.Max(wa.Y, bottom - heightPx);
         int left = _anchorRight
             ? wa.Right - widthPx - (int)(12 * screen.Scaling)
-            : Math.Clamp(Position.X, wa.X, Math.Max(wa.X, wa.Right - widthPx));
+            : Math.Clamp(_left, wa.X, Math.Max(wa.X, wa.Right - widthPx));
         var p = new PixelPoint(left, top);
         if (p != Position) Position = p;
     }
@@ -122,8 +136,10 @@ public partial class MainWindow : Window
         DispatcherTimer.RunOnce(() =>
         {
             var scaling = Screens.ScreenFromWindow(this)?.Scaling ?? 1;
+            _left = Position.X;
             _bottom = Position.Y + (int)Math.Ceiling(Bounds.Height * scaling);
             Reposition();
+            _left = Position.X; // after clamping to the work area
             _bottom = Position.Y + (int)Math.Ceiling(Bounds.Height * scaling);
             _saveDebounce.Stop();
             _saveDebounce.Start();
@@ -148,7 +164,7 @@ public partial class MainWindow : Window
 
     void SaveLayout()
     {
-        _cfg.Left = Position.X;
+        _cfg.Left = _anchorRight ? null : _left;
         _cfg.Bottom = _bottom;
         _cfg.Width = Math.Round(_width);
         _cfg.Scale = Math.Round(_scale, 2);
@@ -210,7 +226,7 @@ public partial class MainWindow : Window
         _fromLeft = ReferenceEquals(sender, LeftGrip);
         _startPointerX = this.PointToScreen(e.GetPosition(this)).X;
         _startWidth = _width;
-        _startLeft = Position.X;
+        _startLeft = _left = Position.X;
         e.Pointer.Capture((IInputElement?)sender);
         e.Handled = true;
     }
@@ -223,7 +239,8 @@ public partial class MainWindow : Window
         var (width, left) = WidgetLayout.Resize(_startWidth, _startLeft, deltaPx, _fromLeft, screenScaling, _scale);
         if (Math.Abs(width - _width) < 0.5) return;
         _width = Root.Width = width;
-        if (left != Position.X) Position = new PixelPoint(left, Position.Y); // left edge: the right edge stays still
+        _left = left; // left edge: the right edge stays still
+        if (left != Position.X) Position = new PixelPoint(left, Position.Y);
     }
 
     void Grip_PointerReleased(object? sender, PointerReleasedEventArgs e)
