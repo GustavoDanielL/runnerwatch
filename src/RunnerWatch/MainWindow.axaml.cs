@@ -56,7 +56,11 @@ public partial class MainWindow : Window
         Root.PointerExited += (_, _) => { _hover = false; UpdateOpacity(); };
 
         Opened += (_, _) => { HideFromAltTab(); PlaceInitially(); UpdateOpacity(); };
-        PropertyChanged += (_, e) => { if (e.Property == BoundsProperty && _placed) Reposition(); };
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property == BoundsProperty && _placed) Reposition();
+            else if (e.Property == SizeToContentProperty && SizeToContent != SizeToContent.WidthAndHeight) KeepSizingToContent();
+        };
         Closed += (_, _) => _tick.Stop();
     }
 
@@ -124,6 +128,22 @@ public partial class MainWindow : Window
             _saveDebounce.Stop();
             _saveDebounce.Start();
         }, TimeSpan.FromMilliseconds(150));
+    }
+
+    // Avalonia switches SizeToContent to Manual when it believes the *user* resized the window. On Windows that includes
+    // any size change that happens inside the OS move loop, i.e. while the header is being dragged and a snapshot changes
+    // the content height. The window then stays frozen at that size and cuts the widget (seen at 118x132 px, 17/11/2026).
+    // This window is never resized through the OS frame (width uses our own grips), so turning it back on is always right.
+    void KeepSizingToContent()
+    {
+        Log.Warn($"SizeToContent was switched to {SizeToContent} (window {Bounds.Width:0}x{Bounds.Height:0}); restoring WidthAndHeight");
+        Dispatcher.UIThread.Post(() =>
+        {
+            SizeToContent = SizeToContent.WidthAndHeight;
+            // Turning it back on doesn't resize by itself: the window keeps the frozen size until a new layout pass.
+            Zoom.InvalidateMeasure();
+            InvalidateMeasure();
+        }, DispatcherPriority.Background);
     }
 
     void SaveLayout()

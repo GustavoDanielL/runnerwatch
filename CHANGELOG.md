@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-11-17
+
+### Fixed
+- The widget could freeze at a small size and cut its content after being dragged. On Windows, Avalonia treats any size change during the OS move loop as a user resize and stops sizing the window to its content; the widget now turns content sizing back on and logs it.
+
 ## [0.3.0] - 2026-11-13
 
 ### Added
