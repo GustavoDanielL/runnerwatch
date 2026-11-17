@@ -5,7 +5,7 @@ All notable changes to this project are documented here. The format is based on 
 ## [0.3.0] - 2026-11-13
 
 ### Added
-- Resize the widget: drag the left or right edge to change the width, and `Ctrl` + mouse wheel (or tray → Size) to scale it.
+- Resize the widget: drag the left or right edge (highlighted on hover) to change the width, and `Ctrl` + mouse wheel (or tray → Size) to scale it.
 - Collapse the widget to a single line above the taskbar with the `▾` button, or from the tray menu.
 - Width, scale and collapsed state are saved.
 - The log records the screen size and scaling, to help with display-related bug reports.

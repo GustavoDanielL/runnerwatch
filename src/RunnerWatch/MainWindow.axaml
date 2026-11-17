@@ -46,6 +46,17 @@
       <Setter Property="CornerRadius" Value="2"/>
       <Setter Property="Background" Value="{DynamicResource RwTrack}"/>
     </Style>
+    <!-- Width grips: invisible until hovered, so they don't clutter the widget but can be found. -->
+    <Style Selector="Border.grip">
+      <Setter Property="Width" Value="8"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Cursor" Value="SizeWestEast"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Margin" Value="0,10"/>
+    </Style>
+    <Style Selector="Border.grip:pointerover">
+      <Setter Property="Background" Value="#553B9EFF"/>
+    </Style>
     <Style Selector="TextBlock.muted">
       <Setter Property="Foreground" Value="{DynamicResource RwMuted}"/>
     </Style>
@@ -145,8 +156,8 @@
     </StackPanel>
   </Border>
   <!-- Width grips: invisible 6 px strips on both sides. -->
-  <Border x:Name="LeftGrip" IsVisible="{Binding IsExpanded}" HorizontalAlignment="Left" Width="6" Background="Transparent" Cursor="SizeWestEast"/>
-  <Border x:Name="RightGrip" IsVisible="{Binding IsExpanded}" HorizontalAlignment="Right" Width="6" Background="Transparent" Cursor="SizeWestEast"/>
+  <Border x:Name="LeftGrip" Classes="grip" IsVisible="{Binding IsExpanded}" HorizontalAlignment="Left"/>
+  <Border x:Name="RightGrip" Classes="grip" IsVisible="{Binding IsExpanded}" HorizontalAlignment="Right"/>
   </Panel>
   </LayoutTransformControl>
 </Window>
