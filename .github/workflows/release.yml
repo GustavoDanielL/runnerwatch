@@ -27,6 +27,8 @@ jobs:
           - { rid: osx-arm64,   os: macos-latest,   archive: zip }
           - { rid: osx-x64,     os: macos-latest,   archive: zip }
     runs-on: ${{ matrix.os }}
+    # Hosted runners only while the repo is public (free minutes); a private copy never bills.
+    if: ${{ !github.event.repository.private }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -77,7 +79,7 @@ jobs:
   release:
     needs: publish
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') && !github.event.repository.private
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8

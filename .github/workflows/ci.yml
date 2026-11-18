@@ -20,6 +20,8 @@ jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
+    # Hosted runners only while the repo is public (free minutes); a private copy never bills.
+    if: ${{ !github.event.repository.private }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -38,6 +40,8 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    # Hosted runners only while the repo is public (free minutes); a private copy never bills.
+    if: ${{ !github.event.repository.private }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
