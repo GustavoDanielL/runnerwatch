@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.3.3] - 2026-11-18
+
+### Fixed
+- The widget couldn't be moved to another monitor: if its content changed size during the drag (a run started or finished), it jumped back to where the drag began. Repositioning now waits for the drag to end.
+- Moves the app didn't make itself (Win+Shift+arrow keys, window managers, the OS after a DPI change) were undone at the next update. They now count as the chosen position and are saved.
+
 ## [0.3.2] - 2026-11-17
 
 ### Fixed

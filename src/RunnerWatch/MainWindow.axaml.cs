@@ -24,6 +24,10 @@ public partial class MainWindow : Window
     // Until the user drags it, the widget sticks to the right edge of the work area. The first layout pass
     // reports a provisional (too wide) size, so a left position computed at open time would be wrong.
     bool _anchorRight;
+    // _ownMove: we are setting Position ourselves. _dragging: the OS move loop is running; repositioning then would
+    // fight it and throw the widget back to where the drag started (it couldn't reach a second monitor, 18/11/2026).
+    bool _ownMove;
+    bool _dragging;
 
     public MainVm Vm { get; } = null!;
     public event Action? RefreshRequested;
@@ -66,6 +70,8 @@ public partial class MainWindow : Window
             if (e.Property == BoundsProperty && _placed) QueueReposition();
             else if (e.Property == SizeToContentProperty && SizeToContent != SizeToContent.WidthAndHeight) KeepSizingToContent();
         };
+        // Moves we didn't make (Win+Shift+arrows, window managers, the OS after a DPI change) are the user's choice too.
+        PositionChanged += (_, _) => { if (_placed && !_ownMove && !_dragging) { AdoptCurrentPosition(); SaveSoon(); } };
         Closed += (_, _) => _tick.Stop();
     }
 
@@ -105,7 +111,7 @@ public partial class MainWindow : Window
     // (the bottom edge drifted by the difference). Coalesce them and run after layout settles.
     void QueueReposition()
     {
-        if (_repositionQueued) return;
+        if (_repositionQueued || _dragging) return;
         _repositionQueued = true;
         Dispatcher.UIThread.Post(() => { _repositionQueued = false; Reposition(); }, DispatcherPriority.Background);
     }
@@ -122,8 +128,22 @@ public partial class MainWindow : Window
         int left = _anchorRight
             ? wa.Right - widthPx - (int)(12 * screen.Scaling)
             : Math.Clamp(_left, wa.X, Math.Max(wa.X, wa.Right - widthPx));
-        var p = new PixelPoint(left, top);
-        if (p != Position) Position = p;
+        MoveTo(new PixelPoint(left, top));
+    }
+
+    void MoveTo(PixelPoint p)
+    {
+        if (p == Position) return;
+        _ownMove = true;
+        try { Position = p; } finally { _ownMove = false; }
+    }
+
+    void AdoptCurrentPosition()
+    {
+        var scaling = Screens.ScreenFromWindow(this)?.Scaling ?? 1;
+        _anchorRight = false;
+        _left = Position.X;
+        _bottom = Position.Y + (int)Math.Ceiling(Bounds.Height * scaling);
     }
 
     void Header_PointerPressed(object? sender, PointerPressedEventArgs e)
@@ -131,16 +151,15 @@ public partial class MainWindow : Window
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed
             || ReferenceEquals(e.Source, RefreshBtn) || ReferenceEquals(e.Source, CollapseBtn)) return;
         _anchorRight = false;
+        _dragging = true;
         BeginMoveDrag(e);
         // BeginMoveDrag returns once the OS drag loop ends on Windows; elsewhere the position settles shortly after.
         DispatcherTimer.RunOnce(() =>
         {
-            var scaling = Screens.ScreenFromWindow(this)?.Scaling ?? 1;
-            _left = Position.X;
-            _bottom = Position.Y + (int)Math.Ceiling(Bounds.Height * scaling);
+            _dragging = false;
+            AdoptCurrentPosition();
             Reposition();
-            _left = Position.X; // after clamping to the work area
-            _bottom = Position.Y + (int)Math.Ceiling(Bounds.Height * scaling);
+            AdoptCurrentPosition(); // after clamping to the work area
             _saveDebounce.Stop();
             _saveDebounce.Start();
         }, TimeSpan.FromMilliseconds(150));
@@ -240,7 +259,7 @@ public partial class MainWindow : Window
         if (Math.Abs(width - _width) < 0.5) return;
         _width = Root.Width = width;
         _left = left; // left edge: the right edge stays still
-        if (left != Position.X) Position = new PixelPoint(left, Position.Y);
+        MoveTo(new PixelPoint(left, Position.Y));
     }
 
     void Grip_PointerReleased(object? sender, PointerReleasedEventArgs e)
