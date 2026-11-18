@@ -7,17 +7,19 @@ public sealed record GhUser(string Login);
 public sealed record BranchRef(string Ref);
 public sealed record PullRequestRef(long Number, BranchRef Head, BranchRef Base);
 
+public sealed record RunRepository(bool Private);
+
 public sealed record WorkflowRun(
     long Id, string Name, string? DisplayTitle, string Status, string? Conclusion, string Event,
     string? HeadBranch, string HeadSha, long WorkflowId, DateTimeOffset CreatedAt,
     DateTimeOffset? RunStartedAt, DateTimeOffset UpdatedAt, string HtmlUrl, int RunAttempt,
-    List<PullRequestRef>? PullRequests, GhUser? Actor, GhUser? TriggeringActor);
+    List<PullRequestRef>? PullRequests, GhUser? Actor, GhUser? TriggeringActor, RunRepository? Repository = null);
 
 public sealed record RunsResponse(int TotalCount, List<WorkflowRun>? WorkflowRuns);
 
 public sealed record Job(
     long Id, string Name, string Status, string? Conclusion, DateTimeOffset? CreatedAt,
-    DateTimeOffset? StartedAt, string? RunnerName, List<string>? Labels, string HtmlUrl);
+    DateTimeOffset? StartedAt, string? RunnerName, List<string>? Labels, string HtmlUrl, string? RunnerGroupName = null);
 
 public sealed record JobsResponse(int TotalCount, List<Job>? Jobs);
 
@@ -52,6 +54,8 @@ public sealed class JobView
     public required string Status { get; init; }
     public string? RunnerName { get; init; }
     public bool SelfHosted { get; init; }
+    /// <summary>Runs (or will run) on a GitHub-hosted runner in a repo that normally uses self-hosted ones.</summary>
+    public bool PaidRunner { get; init; }
     public string? Label { get; init; }
     public bool Stuck { get; init; }
     public AgentMetrics? Metrics { get; init; }
@@ -77,13 +81,15 @@ public sealed class RunView
     public bool Stuck { get; set; }
     /// <summary>Queued only because the self-hosted runner is busy with another job (capacity, not an outage).</summary>
     public bool RunnerBusy { get; set; }
+    /// <summary>At least one job is on a GitHub-hosted (billed) runner where self-hosted ones were expected.</summary>
+    public bool PaidRunner { get; init; }
     public List<JobView> Jobs { get; init; } = new();
 
     public RunView With(List<JobView> jobs) => new()
     {
         Id = Id, Repo = Repo, Workflow = Workflow, Title = Title, Branch = Branch, Event = Event, Actor = Actor,
         Phase = Phase, IsDeploy = IsDeploy, DeployEnv = DeployEnv, CreatedAt = CreatedAt, StartedAt = StartedAt,
-        FinishedAt = FinishedAt, EtaSeconds = EtaSeconds, Url = Url, Stuck = Stuck, RunnerBusy = RunnerBusy, Jobs = jobs,
+        FinishedAt = FinishedAt, EtaSeconds = EtaSeconds, Url = Url, Stuck = Stuck, RunnerBusy = RunnerBusy, PaidRunner = PaidRunner, Jobs = jobs,
     };
 }
 
@@ -95,6 +101,8 @@ public sealed class RunnerView
     public bool Busy { get; init; }
     public string? Os { get; init; }
     public AgentMetrics? Metrics { get; init; }
+    /// <summary>Memory use at or above <see cref="AppConfig.RunnerMemoryAlertPercent"/>.</summary>
+    public bool MemoryHigh { get; init; }
 }
 
 public sealed class Snapshot

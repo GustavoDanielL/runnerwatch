@@ -142,7 +142,7 @@
                   </StackPanel>
                   <StackPanel Grid.Column="2">
                     <TextBlock Text="{Binding RamText}" FontSize="10" Classes="muted"/>
-                    <ProgressBar Value="{Binding Ram, Mode=OneWay}" Foreground="#A371F7"/>
+                    <ProgressBar Value="{Binding Ram, Mode=OneWay}" Foreground="{Binding RamBrush}"/>
                   </StackPanel>
                 </Grid>
               </StackPanel>

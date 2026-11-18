@@ -49,7 +49,8 @@ RunnerWatch --demo
   - **STUCK**: no runner has picked the job up for 5 minutes (configurable). Sends a notification.
 - Deploys, detected by workflow name or by a deployment created for the commit. A notification is sent when one finishes.
 - Failed runs, for 15 minutes after they fail. Right-click a failed run to re-run its failed jobs.
-- Self-hosted runners with their status and CPU/RAM.
+- Self-hosted runners with their status and CPU/RAM. You get a notification when a runner that was online stays offline for 3 minutes, and when its RAM stays above 90% for 2 minutes. Memory pressure is the usual cause of "runner lost communication".
+- **PAID RUNNER**: a job in a private repo that normally uses self-hosted runners landed on a GitHub-hosted runner (`ubuntu-latest` and similar), which bills minutes. Sends a notification, at most once per workflow every 12 hours. This catches a `runs-on` change before the bill does.
 
 Click a run to open it on GitHub. On Windows, `Ctrl+Alt+G` shows and hides the widget; on macOS and Linux, use the tray icon. The language (English or Portuguese) and the light/dark theme follow the OS.
 
@@ -84,6 +85,7 @@ Settings live in `config.json` (tray icon → Open settings…). After editing, 
   "stuckQueueMinutes": 5,
   "deployPattern": "deploy|release|publish|prod",
   "showFailuresMinutes": 15,
+  "paidRunnerAlert": "auto",  // "all", "off"
   "language": "auto",        // "en", "pt-BR"
   "theme": "system"          // "dark", "light"
 }

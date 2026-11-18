@@ -113,7 +113,8 @@ public partial class App : Application, IRunActions
         Log.Info($"Connected as {auth.Login} via {auth.Source}");
         _api = new GitHubApi(auth.Token, _cfg.ApiBaseUrl);
         _metrics = new MetricsCollector(_cfg);
-        var monitor = new ActionsMonitor(_cfg, _api, _metrics, auth.Login);
+        var monitor = new ActionsMonitor(_cfg, _api, _metrics, auth.Login,
+            statePath: Path.Combine(AppConfig.Dir, "self-hosted-repos.txt"));
         monitor.AuthFailed += () => Dispatcher.UIThread.Post(() =>
         {
             Log.Warn($"Token rejected by GitHub (source: {auth.Source})");

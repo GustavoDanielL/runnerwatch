@@ -16,6 +16,8 @@ public static class Palette
     public static readonly IImmutableSolidColorBrush Stuck = new ImmutableSolidColorBrush(Color.Parse("#F85149"));
     public static readonly IImmutableSolidColorBrush Idle = new ImmutableSolidColorBrush(Color.Parse("#6E7681"));
     public static readonly IImmutableSolidColorBrush Ok = new ImmutableSolidColorBrush(Color.Parse("#3FB950"));
+    public static readonly IImmutableSolidColorBrush Paid = new ImmutableSolidColorBrush(Color.Parse("#DB61A2"));
+    public static readonly IImmutableSolidColorBrush Ram = new ImmutableSolidColorBrush(Color.Parse("#A371F7"));
 }
 
 /// <summary>What a run item can ask the app to do (open in browser, re-run).</summary>
@@ -78,6 +80,7 @@ public sealed partial class RunVm : ObservableObject
             { Phase: RunPhase.Failed } => (L.T("badge.failed"), Palette.Stuck),
             { Stuck: true } => (L.T("badge.stuck"), Palette.Stuck),
             { RunnerBusy: true } => (L.T("badge.busy"), Palette.Queued),
+            { PaidRunner: true } => (L.T("badge.paid"), Palette.Paid),
             { Phase: RunPhase.Waiting } => (L.T("badge.approval"), Palette.Waiting),
             { IsDeploy: true } => (v.DeployEnv != null ? $"{L.T("badge.deploy")} {v.DeployEnv}".ToUpperInvariant() : L.T("badge.deploy"), (IBrush)Palette.Deploy),
             _ => ("", BadgeBrush),
@@ -96,7 +99,7 @@ public sealed partial class RunVm : ObservableObject
                 : (j.SelfHosted ? L.T("job.waitingSelf") : L.F("job.waiting", j.Label ?? L.T("job.runner")));
             var m = j.Metrics;
             var res = m == null ? "" : $"  CPU {m.CpuPercent?.ToString("0", L.Culture) ?? "?"}%  RAM {Gb(m.MemUsed)}/{Gb(m.MemTotal)} GB";
-            var icon = j.Stuck && !v.RunnerBusy ? "⚠" : j.Status == "in_progress" ? "▶" : "⏳";
+            var icon = j.Stuck && !v.RunnerBusy ? "⚠" : j.PaidRunner ? "$" : j.Status == "in_progress" ? "▶" : "⏳";
             return $"{icon} {j.Name}  [{where}]{res}";
         }).Take(4).ToList();
         if (v.Jobs.Count > 4) lines.Add(L.F("jobs.more", v.Jobs.Count - 4));
@@ -150,6 +153,7 @@ public sealed partial class RunnerVm : ObservableObject
     [ObservableProperty] public partial string RamText { get; set; }
     [ObservableProperty] public partial double Cpu { get; set; }
     [ObservableProperty] public partial double Ram { get; set; }
+    [ObservableProperty] public partial IBrush RamBrush { get; set; }
     [ObservableProperty] public partial IBrush StatusBrush { get; set; }
     [ObservableProperty] public partial bool MetricsVisible { get; set; }
 
@@ -158,6 +162,7 @@ public sealed partial class RunnerVm : ObservableObject
         Name = v.Name;
         Detail = CpuText = RamText = "";
         StatusBrush = Palette.Idle;
+        RamBrush = Palette.Ram;
         Update(v);
     }
 
@@ -173,6 +178,7 @@ public sealed partial class RunnerVm : ObservableObject
             CpuText = m.CpuPercent is { } c ? string.Create(L.Culture, $"CPU {c:0}%") : "CPU ?";
             Ram = m.MemTotal is > 0 && m.MemUsed is { } u ? (double)u / m.MemTotal.Value : 0;
             RamText = m.MemTotal is > 0 ? string.Create(L.Culture, $"RAM {m.MemUsed / 1073741824.0:0.0}/{m.MemTotal / 1073741824.0:0.0} GB") : "RAM ?";
+            RamBrush = v.MemoryHigh ? Palette.Stuck : Palette.Ram;
             MetricsVisible = true;
         }
         else

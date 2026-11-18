@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-11-18
+
+### Added
+- **PAID RUNNER** alert: a job in a private repo that normally uses self-hosted runners but landed on a GitHub-hosted runner gets a badge and a notification (at most once per workflow every 12 hours). Setting: `paidRunnerAlert` (`auto`, `all`, `off`).
+- Runner offline alert: a notification when a self-hosted runner stays offline for `runnerOfflineMinutes` (3), and another when it comes back.
+- Runner memory alert: a notification when a runner's RAM stays at or above `runnerMemoryAlertPercent` (90%) for 2 minutes. The RAM bar turns red.
+
 ## [0.3.3] - 2026-11-18
 
 ### Fixed

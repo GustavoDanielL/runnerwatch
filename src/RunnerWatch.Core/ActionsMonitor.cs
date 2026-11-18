@@ -12,6 +12,10 @@ namespace RunnerWatch.Core;
 public sealed class ActionsMonitor : ISnapshotSource
 {
     static readonly HashSet<string> QueuedStates = new(StringComparer.OrdinalIgnoreCase) { "queued", "pending", "requested", "waiting" };
+    // Standard GitHub-hosted images. Larger runners use custom labels and are recognised by their runner group only.
+    static readonly Regex HostedLabelRx = new(@"^(ubuntu|windows|macos)-", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    static readonly TimeSpan PaidRenotify = TimeSpan.FromHours(12);
+    static readonly TimeSpan MemoryAlertAfter = TimeSpan.FromMinutes(2);
 
     readonly AppConfig _cfg;
     readonly GitHubApi _api;
@@ -38,13 +42,28 @@ public sealed class ActionsMonitor : ISnapshotSource
     DateTimeOffset _metricsAt = DateTimeOffset.MinValue;
     DateTimeOffset _pruneAt;
 
+    // Paid-runner alert: repos where self-hosted runners are expected (persisted: after a restart, the first run seen
+    // may already be on a GitHub-hosted runner, which is exactly the case to catch).
+    readonly string? _statePath;
+    readonly HashSet<string> _selfHostedRepos = new(StringComparer.OrdinalIgnoreCase);
+    readonly Dictionary<string, DateTimeOffset> _paidNotified = new(StringComparer.OrdinalIgnoreCase);
+
+    // Runner health. Only runners seen online in this session can "go offline": old dead registrations stay quiet.
+    readonly HashSet<string> _runnerSeenOnline = new(StringComparer.OrdinalIgnoreCase);
+    readonly Dictionary<string, DateTimeOffset> _offlineSince = new(StringComparer.OrdinalIgnoreCase);
+    readonly HashSet<string> _offlineNotified = new(StringComparer.OrdinalIgnoreCase);
+    readonly Dictionary<string, DateTimeOffset> _memHighSince = new(StringComparer.OrdinalIgnoreCase);
+    readonly HashSet<string> _memNotified = new(StringComparer.OrdinalIgnoreCase);
+
     string? _error;
 
     public event Action<Snapshot>? Updated;
     public event Action<string, string, NotifyKind>? Notify;
     public event Action? AuthFailed;
 
-    public ActionsMonitor(AppConfig cfg, GitHubApi api, MetricsCollector? metrics, string login, Func<DateTimeOffset>? clock = null)
+    /// <param name="statePath">File that remembers which repos use self-hosted runners; null keeps it in memory only.</param>
+    public ActionsMonitor(AppConfig cfg, GitHubApi api, MetricsCollector? metrics, string login,
+        Func<DateTimeOffset>? clock = null, string? statePath = null)
     {
         _cfg = cfg;
         _api = api;
@@ -54,6 +73,14 @@ public sealed class ActionsMonitor : ISnapshotSource
         _pruneAt = _now();
         try { _deployRx = new Regex(cfg.DeployPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(50)); }
         catch (ArgumentException) { _deployRx = new Regex("deploy|release|publish|prod", RegexOptions.IgnoreCase); }
+        _statePath = statePath;
+        try
+        {
+            if (statePath != null && File.Exists(statePath))
+                foreach (var line in File.ReadAllLines(statePath))
+                    if (line.Contains('/')) _selfHostedRepos.Add(line.Trim());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Warn($"Could not read {statePath}", ex); }
     }
 
     public async Task RunAsync(CancellationToken ct)
@@ -277,11 +304,15 @@ public sealed class ActionsMonitor : ISnapshotSource
             _runners.GetValueOrDefault(repo)?.Select(r => r.Name) ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
         var stuckLimit = TimeSpan.FromMinutes(_cfg.StuckQueueMinutes);
 
+        bool IsSelf(Job j) => j.Labels?.Any(l => l.Equals("self-hosted", StringComparison.OrdinalIgnoreCase)) == true
+                              || (j.RunnerName != null && selfHostedNames.Contains(j.RunnerName));
+        if (jobs.Any(IsSelf)) LearnSelfHosted(repo);
+        bool expectSelf = ExpectsSelfHosted(repo, run);
+
         var jobViews = new List<JobView>();
         foreach (var j in jobs.Where(j => !IsCompleted(j.Status)))
         {
-            bool self = j.Labels?.Any(l => l.Equals("self-hosted", StringComparison.OrdinalIgnoreCase)) == true
-                        || (j.RunnerName != null && selfHostedNames.Contains(j.RunnerName));
+            bool self = IsSelf(j);
             bool queued = QueuedStates.Contains(j.Status);
             jobViews.Add(new JobView
             {
@@ -289,11 +320,14 @@ public sealed class ActionsMonitor : ISnapshotSource
                 Status = j.Status,
                 RunnerName = string.IsNullOrEmpty(j.RunnerName) ? null : j.RunnerName,
                 SelfHosted = self,
+                PaidRunner = expectSelf && !self && IsGitHubHosted(j),
                 Label = j.Labels?.FirstOrDefault(l => !l.Equals("self-hosted", StringComparison.OrdinalIgnoreCase)),
                 Stuck = queued && now - (j.CreatedAt ?? run.CreatedAt) > stuckLimit,
                 Metrics = j.RunnerName != null && _runnerMetrics.TryGetValue(j.RunnerName, out var m) ? m : null,
             });
         }
+
+        if (jobViews.FirstOrDefault(j => j.PaidRunner) is { } paidJob) NotifyPaid(repo, run.Name, paidJob);
 
         // The API can keep a run "queued" while one of its jobs is already running.
         if (phase == RunPhase.Queued && jobViews.Any(j => j.Status == "in_progress"))
@@ -338,8 +372,44 @@ public sealed class ActionsMonitor : ISnapshotSource
             EtaSeconds = eta,
             Url = run.HtmlUrl,
             Stuck = runStuck,
+            PaidRunner = jobViews.Any(j => j.PaidRunner),
             Jobs = jobViews,
         };
+    }
+
+    // ---------- Paid (GitHub-hosted) runner alert ----------
+    internal static bool IsGitHubHosted(Job j) =>
+        string.Equals(j.RunnerGroupName, "GitHub Actions", StringComparison.OrdinalIgnoreCase)
+        || j.Labels?.Any(l => HostedLabelRx.IsMatch(l)) == true;
+
+    bool ExpectsSelfHosted(string repo, WorkflowRun run)
+    {
+        var mode = _cfg.PaidRunnerAlert?.Trim().ToLowerInvariant();
+        if (mode == "off") return false;
+        if (run.Repository?.Private == false) return false; // hosted minutes are free on public repos
+        return mode == "all" || _selfHostedRepos.Contains(repo) || _runners.ContainsKey(repo);
+    }
+
+    void LearnSelfHosted(string repo)
+    {
+        if (!_selfHostedRepos.Add(repo) || _statePath == null) return;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_statePath)!);
+            File.WriteAllLines(_statePath, _selfHostedRepos.OrderBy(r => r, StringComparer.OrdinalIgnoreCase));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log.Warn($"Could not write {_statePath}", ex); }
+    }
+
+    void NotifyPaid(string repo, string workflow, JobView job)
+    {
+        var key = repo + "|" + workflow;
+        var now = _now();
+        if (_paidNotified.TryGetValue(key, out var at) && now - at < PaidRenotify) return;
+        _paidNotified[key] = now;
+        Log.Warn($"Job on a GitHub-hosted runner where self-hosted is expected: {repo} · {workflow} · {job.Name} ({job.Label})");
+        if (_cfg.Notifications)
+            Notify?.Invoke(L.T("notify.paidTitle"), L.F("notify.paidBody", Short(repo), workflow, job.Name, job.Label ?? "GitHub-hosted"), NotifyKind.Warning);
     }
 
     static string BranchText(WorkflowRun run)
@@ -387,8 +457,81 @@ public sealed class ActionsMonitor : ISnapshotSource
         }
         foreach (var gone in _runners.Keys.Except(_repos, StringComparer.OrdinalIgnoreCase).ToList())
             _runners.Remove(gone);
+        foreach (var repo in _runners.Keys) LearnSelfHosted(repo);
         _runnersAt = _now();
+        CheckRunnersOnline();
     }
+
+    // ---------- Runner health ----------
+    void CheckRunnersOnline()
+    {
+        if (_cfg.RunnerOfflineMinutes <= 0) return;
+        var now = _now();
+        var limit = TimeSpan.FromMinutes(_cfg.RunnerOfflineMinutes);
+        var byName = _runners.Values.SelectMany(x => x)
+            .GroupBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => (Name: g.Key, Online: g.Any(IsOnline)));
+        foreach (var (name, online) in byName)
+        {
+            if (online)
+            {
+                _offlineSince.Remove(name);
+                _runnerSeenOnline.Add(name);
+                if (_offlineNotified.Remove(name))
+                {
+                    Log.Info($"Runner back online: {name}");
+                    if (_cfg.Notifications) Notify?.Invoke(L.T("notify.runnerBackTitle"), L.F("notify.runnerBackBody", name), NotifyKind.Success);
+                }
+                continue;
+            }
+            if (!_runnerSeenOnline.Contains(name)) continue;
+            if (!_offlineSince.TryGetValue(name, out var since)) _offlineSince[name] = since = now;
+            if (now - since >= limit && _offlineNotified.Add(name))
+            {
+                Log.Warn($"Runner offline for {_cfg.RunnerOfflineMinutes}+ min: {name}");
+                if (_cfg.Notifications)
+                    Notify?.Invoke(L.T("notify.runnerOfflineTitle"), L.F("notify.runnerOfflineBody", name, _cfg.RunnerOfflineMinutes), NotifyKind.Warning);
+            }
+        }
+    }
+
+    /// <summary>Stores the latest metrics and raises the memory alert when RAM stays high for a while.</summary>
+    internal void ObserveMetrics(IEnumerable<(string Name, AgentMetrics Metrics)> metrics)
+    {
+        _runnerMetrics.Clear();
+        foreach (var (n, m) in metrics) _runnerMetrics[n] = m;
+
+        int limit = _cfg.RunnerMemoryAlertPercent;
+        if (limit <= 0) return;
+        var now = _now();
+        foreach (var name in _memHighSince.Keys.Where(n => !_runnerMetrics.ContainsKey(n)).ToList())
+            _memHighSince.Remove(name); // no data: the 2-minute window starts over
+        foreach (var (name, m) in _runnerMetrics)
+        {
+            if (MemPercent(m) is not { } pct) continue;
+            if (pct < limit)
+            {
+                _memHighSince.Remove(name);
+                if (pct < limit - 10) _memNotified.Remove(name); // hysteresis: no repeat while hovering around the limit
+                continue;
+            }
+            if (!_memHighSince.TryGetValue(name, out var since)) _memHighSince[name] = since = now;
+            if (now - since >= MemoryAlertAfter && _memNotified.Add(name))
+            {
+                Log.Warn($"Runner memory high: {name} {pct:0}%");
+                if (_cfg.Notifications)
+                    Notify?.Invoke(L.T("notify.memoryTitle"),
+                        L.F("notify.memoryBody", name, pct.ToString("0", L.Culture),
+                            string.Create(L.Culture, $"{m.MemUsed / 1073741824.0:0.0}/{m.MemTotal / 1073741824.0:0.0} GB")),
+                        NotifyKind.Warning);
+            }
+        }
+    }
+
+    internal static double? MemPercent(AgentMetrics m) =>
+        m.MemTotal is > 0 && m.MemUsed is { } u ? 100.0 * u / m.MemTotal.Value : null;
+
+    static bool IsOnline(Runner r) => r.Status.Equals("online", StringComparison.OrdinalIgnoreCase);
 
     async Task RefreshMetricsAsync(CancellationToken ct)
     {
@@ -402,9 +545,7 @@ public sealed class ActionsMonitor : ISnapshotSource
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
         var results = await Task.WhenAll(names.Select(async n => (n, m: await _metrics!.GetAsync(n, ct))));
-        _runnerMetrics.Clear();
-        foreach (var (n, m) in results)
-            if (m != null) _runnerMetrics[n] = m;
+        ObserveMetrics(results.Where(x => x.m != null).Select(x => (x.n, x.m!)));
     }
 
     void OnFinished(RunView old, WorkflowRun? run)
@@ -459,6 +600,8 @@ public sealed class ActionsMonitor : ISnapshotSource
                 Busy = r.Busy,
                 Os = r.Os,
                 Metrics = _runnerMetrics.GetValueOrDefault(r.Name),
+                MemoryHigh = _cfg.RunnerMemoryAlertPercent > 0 && _runnerMetrics.GetValueOrDefault(r.Name) is { } m
+                             && MemPercent(m) >= _cfg.RunnerMemoryAlertPercent,
             }))
             .GroupBy(r => r.Name, StringComparer.OrdinalIgnoreCase) // same machine registered in several repos
             .Select(g => g.OrderByDescending(r => r.Busy).First())
@@ -483,7 +626,7 @@ public sealed class ActionsMonitor : ISnapshotSource
     {
         if (r.Jobs.Count == 0 || _runnerMetrics.Count == 0) return r;
         return r.With(r.Jobs.Select(j => j.RunnerName != null && _runnerMetrics.TryGetValue(j.RunnerName, out var m)
-            ? new JobView { Name = j.Name, Status = j.Status, RunnerName = j.RunnerName, SelfHosted = j.SelfHosted, Label = j.Label, Stuck = j.Stuck, Metrics = m }
+            ? new JobView { Name = j.Name, Status = j.Status, RunnerName = j.RunnerName, SelfHosted = j.SelfHosted, PaidRunner = j.PaidRunner, Label = j.Label, Stuck = j.Stuck, Metrics = m }
             : j).ToList());
     }
 

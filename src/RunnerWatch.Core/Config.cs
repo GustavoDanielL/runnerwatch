@@ -23,6 +23,16 @@ public sealed class AppConfig
     /// <summary>How long a failed run stays in the widget (with a re-run button). 0 hides failures.</summary>
     public int ShowFailuresMinutes { get; set; } = 15;
 
+    /// <summary>
+    /// Warn when a job runs on a GitHub-hosted (billed) runner. "auto": private repos known to use self-hosted runners
+    /// (runners registered in the repo, or a self-hosted job seen there). "all": every private repo. "off".
+    /// </summary>
+    public string PaidRunnerAlert { get; set; } = "auto";
+    /// <summary>Notify when a self-hosted runner that was online stays offline this long. 0 disables.</summary>
+    public int RunnerOfflineMinutes { get; set; } = 3;
+    /// <summary>Notify when a runner's RAM stays at or above this percentage for 2 minutes (needs metrics). 0 disables.</summary>
+    public int RunnerMemoryAlertPercent { get; set; } = 90;
+
     /// <summary>Metrics agent URL per self-hosted runner. {runner} is replaced by the runner name. "" disables.</summary>
     public string AgentUrlTemplate { get; set; } = "http://{runner}:9465";
     /// <summary>Per-runner override: { "my-runner": "http://192.168.0.10:9465" }.</summary>

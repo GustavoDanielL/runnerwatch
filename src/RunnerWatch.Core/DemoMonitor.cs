@@ -90,7 +90,9 @@ public sealed class DemoMonitor : ISnapshotSource
             Branch = "feat/dark-settings → main  (PR #77)", Event = "pull_request", Actor = "monalisa",
             Phase = started ? RunPhase.Running : RunPhase.Queued, CreatedAt = loopStart.AddSeconds(-25),
             StartedAt = started ? loopStart.AddSeconds(12) : null, EtaSeconds = started ? 95 : null, Url = "https://github.com/",
-            Jobs = [new() { Name = "android", Status = started ? "in_progress" : "queued", Label = "ubuntu-latest", RunnerName = started ? "GitHub Actions 31" : null }],
+            // acme/mobile normally builds on self-hosted runners: a job on ubuntu-latest is billed (PAID RUNNER).
+            PaidRunner = true,
+            Jobs = [new() { Name = "android", Status = started ? "in_progress" : "queued", Label = "ubuntu-latest", RunnerName = started ? "GitHub Actions 31" : null, PaidRunner = true }],
         });
 
         // A release waiting for a self-hosted macOS runner that is offline: a real STUCK.

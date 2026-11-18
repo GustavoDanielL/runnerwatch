@@ -24,7 +24,10 @@ Open it from the tray icon (**Open settings…**), edit, then choose **Apply set
 | `deployPattern` | `deploy\|release\|publish\|prod` | Case-insensitive regex on workflow/job/title names that marks a run as a deploy. A deployment created for the commit also counts. |
 | `stuckQueueMinutes` | `5` | Queue time after which a job nobody picks up is **STUCK** (and notifies). |
 | `showFailuresMinutes` | `15` | How long failed runs stay visible with a re-run option. `0` hides them. |
-| `notifications` | `true` | Desktop notifications (stuck jobs, failures, finished deploys). |
+| `notifications` | `true` | Desktop notifications (stuck jobs, failures, finished deploys, runner alerts). |
+| `paidRunnerAlert` | `auto` | Flag jobs on GitHub-hosted (billed) runners as **PAID RUNNER** and notify. `auto`: private repos known to use self-hosted runners, meaning runners are registered in the repo or a self-hosted job was seen there (remembered in `self-hosted-repos.txt` next to the config). `all`: every private repo. `off` disables. Public repos are never flagged. Recognises the standard `ubuntu-*`, `windows-*` and `macos-*` labels and the "GitHub Actions" runner group; larger runners with custom labels are not detected. |
+| `runnerOfflineMinutes` | `3` | Notify when a self-hosted runner that was online in this session stays offline this long, and again when it comes back. `0` disables. Needs permission to list runners (repo admin). |
+| `runnerMemoryAlertPercent` | `90` | Notify when a runner's RAM stays at or above this percentage for 2 minutes; the RAM bar turns red. Needs metrics (same machine or agent). `0` disables. |
 | `onlyMine` | `false` | Only show runs triggered by you. |
 | `agentUrlTemplate` | `http://{runner}:9465` | Where to find the metrics agent of a self-hosted runner. `""` disables. |
 | `agents` | `{}` | Per-runner URL override: `{ "runner-name": "http://10.0.0.5:9465" }`. |
