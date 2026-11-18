@@ -24,6 +24,12 @@ macOS e Linux:
 curl -fsSL https://raw.githubusercontent.com/GustavoDanielL/runnerwatch/main/install.sh | sh
 ```
 
+Homebrew (macOS):
+
+```bash
+brew install --cask gustavodaniell/runnerwatch/runnerwatch
+```
+
 Scoop:
 
 ```powershell

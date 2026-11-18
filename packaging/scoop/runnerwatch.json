@@ -1,16 +1,16 @@
 {
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "GitHub Actions in a tiny always-on-top widget: running, queued, stuck jobs, deploys and self-hosted runner CPU/RAM.",
     "homepage": "https://github.com/GustavoDanielL/runnerwatch",
     "license": "MIT",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/GustavoDanielL/runnerwatch/releases/download/v0.3.0/RunnerWatch-win-x64.zip",
-            "hash": "2ae9c3b813ba80ce3b9fff14eda8a636ec349d4150b5630ae770bd80921000da"
+            "url": "https://github.com/GustavoDanielL/runnerwatch/releases/download/v0.4.0/RunnerWatch-win-x64.zip",
+            "hash": "ea9ab5c8170c600a0f6938ee6043205425a3b584838e9dd5e597b18297c03faf"
         },
         "arm64": {
-            "url": "https://github.com/GustavoDanielL/runnerwatch/releases/download/v0.3.0/RunnerWatch-win-arm64.zip",
-            "hash": "f4a5af8c3f911542ca39de67c8c90b37e6910306b54cb5c590e9af6ca51dca62"
+            "url": "https://github.com/GustavoDanielL/runnerwatch/releases/download/v0.4.0/RunnerWatch-win-arm64.zip",
+            "hash": "6ea7f2c98d0774956790d00df7e1a3186b2d9ac9936b3109c913564c7b8dbb9f"
         }
     },
     "bin": "RunnerWatch.exe",
