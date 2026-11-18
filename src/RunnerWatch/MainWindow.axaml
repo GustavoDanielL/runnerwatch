@@ -98,6 +98,11 @@
                 <ContextMenu>
                   <MenuItem Header="{Binding OpenText}" Command="{Binding OpenCommand}"/>
                   <MenuItem Header="{Binding RerunText}" Command="{Binding RerunCommand}" IsVisible="{Binding CanRerun}"/>
+                  <MenuItem Header="{Binding ApproveText}" Command="{Binding ApproveCommand}" IsVisible="{Binding CanApprove}"/>
+                  <MenuItem Header="{Binding CancelText}" Command="{Binding CancelCommand}" IsVisible="{Binding CanCancel}"/>
+                  <Separator/>
+                  <MenuItem Header="{Binding HideWorkflowText}" Command="{Binding HideWorkflowCommand}"/>
+                  <MenuItem Header="{Binding HideRepoText}" Command="{Binding HideRepoCommand}"/>
                 </ContextMenu>
               </Border.ContextMenu>
               <StackPanel>

@@ -87,17 +87,24 @@ public sealed class GitHubApi : IDisposable
         await ThrowIfFailedAsync(resp, path, ct).ConfigureAwait(false);
     }
 
+    public async Task PostJsonAsync(string path, string json, CancellationToken ct = default)
+    {
+        using var resp = await SendAsync(HttpMethod.Post, path, null, ct, json).ConfigureAwait(false);
+        await ThrowIfFailedAsync(resp, path, ct).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Sends a request and follows up to 3 redirects (renamed/transferred repos) keeping the token, but only
     /// to the same host as the API: the token is never sent to another origin.
     /// </summary>
-    async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, string? etag, CancellationToken ct)
+    async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, string? etag, CancellationToken ct, string? json = null)
     {
         var uri = new Uri(_http.BaseAddress!, path);
         for (int hop = 0; ; hop++)
         {
             using var req = new HttpRequestMessage(method, uri);
             if (etag != null) req.Headers.TryAddWithoutValidation("If-None-Match", etag);
+            if (json != null) req.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
             var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
             ReadRate(resp);
 
@@ -110,7 +117,7 @@ public sealed class GitHubApi : IDisposable
                 return resp; // never forward the token to another origin
             resp.Dispose();
             uri = next;
-            if (code is 301 or 302 && method == HttpMethod.Post) method = HttpMethod.Get; // RFC 9110 semantics
+            if (code is 301 or 302 && method == HttpMethod.Post) { method = HttpMethod.Get; json = null; } // RFC 9110 semantics
         }
     }
 

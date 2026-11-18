@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format is based on 
 - **PAID RUNNER** alert: a job in a private repo that normally uses self-hosted runners but landed on a GitHub-hosted runner gets a badge and a notification (at most once per workflow every 12 hours). Setting: `paidRunnerAlert` (`auto`, `all`, `off`).
 - Runner offline alert: a notification when a self-hosted runner stays offline for `runnerOfflineMinutes` (3), and another when it comes back.
 - Runner memory alert: a notification when a runner's RAM stays at or above `runnerMemoryAlertPercent` (90%) for 2 minutes. The RAM bar turns red.
+- Right-click a run to cancel it (with a confirmation) or to approve a deployment waiting on an environment (#8).
+- Filters (#6): right-click a run to hide its workflow or its repository (hidden repos aren't polled); tray → Filters toggles "only runs triggered by me" and shows hidden items again.
+- Spanish translation (#1).
 
 ## [0.3.3] - 2026-11-18
 

@@ -25,6 +25,9 @@ public interface IRunActions
 {
     void Open(string url);
     Task RerunFailedAsync(RunView run);
+    Task CancelAsync(RunView run);
+    Task ApproveAsync(RunView run);
+    void Hide(RunView run, bool wholeRepo);
 }
 
 public sealed partial class RunVm : ObservableObject
@@ -45,9 +48,15 @@ public sealed partial class RunVm : ObservableObject
     [ObservableProperty] public partial bool JobsVisible { get; set; }
     [ObservableProperty] public partial bool BadgeVisible { get; set; }
     [ObservableProperty] public partial bool CanRerun { get; set; }
+    [ObservableProperty] public partial bool CanCancel { get; set; }
+    [ObservableProperty] public partial bool CanApprove { get; set; }
+    [ObservableProperty] public partial string HideWorkflowText { get; set; } = "";
+    [ObservableProperty] public partial string HideRepoText { get; set; } = "";
 
     public string OpenText => L.T("run.open");
     public string RerunText => L.T("run.rerunFailed");
+    public string CancelText => L.T("run.cancel");
+    public string ApproveText => L.T("run.approve");
     public string Tooltip => L.T("run.tooltip");
 
     public RunVm(RunView v, IRunActions actions)
@@ -67,6 +76,19 @@ public sealed partial class RunVm : ObservableObject
 
     partial void OnCanRerunChanged(bool value) => RerunCommand.NotifyCanExecuteChanged();
 
+    [RelayCommand(CanExecute = nameof(CanCancel))]
+    Task Cancel() => _actions.CancelAsync(_v);
+
+    partial void OnCanCancelChanged(bool value) => CancelCommand.NotifyCanExecuteChanged();
+
+    [RelayCommand(CanExecute = nameof(CanApprove))]
+    Task Approve() => _actions.ApproveAsync(_v);
+
+    partial void OnCanApproveChanged(bool value) => ApproveCommand.NotifyCanExecuteChanged();
+
+    [RelayCommand] void HideWorkflow() => _actions.Hide(_v, wholeRepo: false);
+    [RelayCommand] void HideRepo() => _actions.Hide(_v, wholeRepo: true);
+
     public void Update(RunView v)
     {
         _v = v;
@@ -74,6 +96,10 @@ public sealed partial class RunVm : ObservableObject
         Title = $"{v.Workflow} · {repo}";
         Sub = $"{v.Branch} · {v.Event}{(v.Actor != null ? " · " + v.Actor : "")}";
         CanRerun = v.Phase == RunPhase.Failed;
+        CanCancel = v.Phase != RunPhase.Failed;
+        CanApprove = v.Phase == RunPhase.Waiting;
+        HideWorkflowText = L.F("run.hideWorkflow", v.Workflow);
+        HideRepoText = L.F("run.hideRepo", repo);
 
         (Badge, BadgeBrush) = v switch
         {

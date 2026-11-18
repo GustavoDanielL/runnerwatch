@@ -13,12 +13,15 @@ public sealed class Tray : IDisposable
     readonly TrayIcon _icon;
     readonly Dictionary<Color, WindowIcon> _icons = new();
     readonly NativeMenuItem _startup;
+    readonly NativeMenuItem _onlyMine;
+    readonly NativeMenuItem _showHidden;
 
-    public event Action? ToggleWindow, ToggleCollapsed, Refresh, OpenConfig, OpenLog, Reload, ChangeToken, Exit;
+    public event Action? ToggleWindow, ToggleCollapsed, Refresh, OpenConfig, OpenLog, Reload, ChangeToken, Exit, ShowHidden;
+    public event Action<bool>? OnlyMineChanged;
     public event Action<double>? SizeChosen;
     public event Action<bool>? StartupChanged;
 
-    public Tray(Application app, bool startWithSystem)
+    public Tray(Application app, bool startWithSystem, bool onlyMine, int hiddenCount)
     {
         var menu = new NativeMenu();
         menu.Items.Add(Item(OperatingSystem.IsWindows() ? L.T("tray.toggleHotkey") : L.T("tray.toggle"), () => ToggleWindow?.Invoke()));
@@ -29,6 +32,18 @@ public sealed class Tray : IDisposable
         size.Items.Add(Item(L.T("size.large"), () => SizeChosen?.Invoke(1.25)));
         menu.Items.Add(new NativeMenuItem(L.T("tray.size")) { Menu = size });
         menu.Items.Add(Item(L.T("tray.refresh"), () => Refresh?.Invoke()));
+        var filters = new NativeMenu();
+        _onlyMine = new NativeMenuItem(L.T("tray.onlyMine")) { ToggleType = MenuItemToggleType.CheckBox, IsChecked = onlyMine };
+        _onlyMine.Click += (_, _) =>
+        {
+            _onlyMine.IsChecked = !_onlyMine.IsChecked;
+            OnlyMineChanged?.Invoke(_onlyMine.IsChecked);
+        };
+        filters.Items.Add(_onlyMine);
+        _showHidden = Item("", () => ShowHidden?.Invoke());
+        filters.Items.Add(_showHidden);
+        SetHiddenCount(hiddenCount);
+        menu.Items.Add(new NativeMenuItem(L.T("tray.filters")) { Menu = filters });
         menu.Items.Add(new NativeMenuItemSeparator());
         _startup = new NativeMenuItem(L.T("tray.startup")) { ToggleType = MenuItemToggleType.CheckBox, IsChecked = startWithSystem };
         _startup.Click += (_, _) =>
@@ -60,6 +75,12 @@ public sealed class Tray : IDisposable
         var item = new NativeMenuItem(header);
         item.Click += (_, _) => onClick();
         return item;
+    }
+
+    public void SetHiddenCount(int count)
+    {
+        _showHidden.Header = L.F("tray.showHidden", count);
+        _showHidden.IsEnabled = count > 0;
     }
 
     public void SetState(Color c, string tooltip)

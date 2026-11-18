@@ -39,6 +39,10 @@ public sealed class DemoMonitor : ISnapshotSource
         return Task.FromResult<string?>(null);
     }
 
+    // The demo has nothing on GitHub to change: pretend it worked.
+    public Task<string?> CancelAsync(RunView run, CancellationToken ct) => Task.FromResult<string?>(null);
+    public Task<string?> ApproveAsync(RunView run, CancellationToken ct) => Task.FromResult<string?>(null);
+
     internal Snapshot Build()
     {
         var now = _now();

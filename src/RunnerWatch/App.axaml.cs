@@ -61,7 +61,9 @@ public partial class App : Application, IRunActions
         _notifier = new Notifier(() => _win);
         _hotkey = new GlobalHotkey(() => Dispatcher.UIThread.Post(ToggleWindow));
 
-        _tray = new Tray(this, _cfg.StartWithSystem);
+        _tray = new Tray(this, _cfg.StartWithSystem, _cfg.OnlyMine, RunFilter.HiddenCount(_cfg));
+        _tray.OnlyMineChanged += on => { _cfg.OnlyMine = on; FiltersChanged(); };
+        _tray.ShowHidden += () => { _cfg.HiddenRepos = new(); _cfg.HiddenWorkflows = new(); FiltersChanged(); };
         _tray.ToggleWindow += ToggleWindow;
         _tray.ToggleCollapsed += () => { if (!_win.IsVisible) ToggleWindow(); _win.ToggleCollapsed(); };
         _tray.SizeChosen += s => _win.SetScale(s);
@@ -138,6 +140,8 @@ public partial class App : Application, IRunActions
     void OnSnapshot(Snapshot s)
     {
         if (_uiFrozen) return;
+        // The monitor filters too (and stops polling hidden repos); this also covers the demo and in-flight snapshots.
+        s.Runs.RemoveAll(r => !RunFilter.Visible(_cfg, r.Repo, r.Workflow));
         _win.ApplySnapshot(s);
         var vm = _win.Vm;
         var color = vm.HeaderBrush is ISolidColorBrush b ? b.Color : Colors.Gray;
@@ -152,6 +156,45 @@ public partial class App : Application, IRunActions
     {
         if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return;
         _ = _win.Launcher.LaunchUriAsync(new Uri(url));
+    }
+
+    public async Task CancelAsync(RunView run)
+    {
+        if (_source == null) return;
+        var repo = run.Repo[(run.Repo.IndexOf('/') + 1)..];
+        if (!await ConfirmDialog.AskAsync("RunnerWatch", L.F("run.cancelConfirm", run.Workflow, repo), L.T("run.cancelYes"), L.T("run.cancelNo")))
+            return;
+        var error = await _source.CancelAsync(run, _cts?.Token ?? default);
+        ShowActionResult(error, L.T("run.cancelDone"), run);
+    }
+
+    public async Task ApproveAsync(RunView run)
+    {
+        if (_source == null) return;
+        var error = await _source.ApproveAsync(run, _cts?.Token ?? default);
+        ShowActionResult(error, L.T("run.approveDone"), run);
+    }
+
+    void ShowActionResult(string? error, string done, RunView run)
+    {
+        _notifier.Show(error == null ? done : L.T("badge.failed"),
+            error ?? $"{run.Repo} · {run.Workflow}", error == null ? NotifyKind.Info : NotifyKind.Failure);
+        _source?.Kick();
+    }
+
+    public void Hide(RunView run, bool wholeRepo)
+    {
+        // Replace the lists instead of mutating them: the polling thread reads them.
+        if (wholeRepo) _cfg.HiddenRepos = [.. _cfg.HiddenRepos, run.Repo];
+        else _cfg.HiddenWorkflows = [.. _cfg.HiddenWorkflows, RunFilter.WorkflowKey(run.Repo, run.Workflow)];
+        FiltersChanged();
+    }
+
+    void FiltersChanged()
+    {
+        _cfg.Save();
+        _tray.SetHiddenCount(RunFilter.HiddenCount(_cfg));
+        _source?.Kick();
     }
 
     public async Task RerunFailedAsync(RunView run)

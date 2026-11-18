@@ -52,7 +52,7 @@ RunnerWatch --demo
 - Self-hosted runners with their status and CPU/RAM. You get a notification when a runner that was online stays offline for 3 minutes, and when its RAM stays above 90% for 2 minutes. Memory pressure is the usual cause of "runner lost communication".
 - **PAID RUNNER**: a job in a private repo that normally uses self-hosted runners landed on a GitHub-hosted runner (`ubuntu-latest` and similar), which bills minutes. Sends a notification, at most once per workflow every 12 hours. This catches a `runs-on` change before the bill does.
 
-Click a run to open it on GitHub. On Windows, `Ctrl+Alt+G` shows and hides the widget; on macOS and Linux, use the tray icon. The language (English or Portuguese) and the light/dark theme follow the OS.
+Click a run to open it on GitHub. Right-click it to cancel it, approve a deployment waiting on an environment, re-run failed jobs, or hide that workflow or repository (tray → Filters shows them again and has "only runs triggered by me"). On Windows, `Ctrl+Alt+G` shows and hides the widget; on macOS and Linux, use the tray icon. The language (English, Portuguese or Spanish) and the light/dark theme follow the OS.
 
 Size and placement:
 
@@ -86,7 +86,7 @@ Settings live in `config.json` (tray icon → Open settings…). After editing, 
   "deployPattern": "deploy|release|publish|prod",
   "showFailuresMinutes": 15,
   "paidRunnerAlert": "auto",  // "all", "off"
-  "language": "auto",        // "en", "pt-BR"
+  "language": "auto",        // "en", "pt-BR", "es"
   "theme": "system"          // "dark", "light"
 }
 ```

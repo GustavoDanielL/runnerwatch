@@ -28,11 +28,13 @@ Open it from the tray icon (**Open settings…**), edit, then choose **Apply set
 | `paidRunnerAlert` | `auto` | Flag jobs on GitHub-hosted (billed) runners as **PAID RUNNER** and notify. `auto`: private repos known to use self-hosted runners, meaning runners are registered in the repo or a self-hosted job was seen there (remembered in `self-hosted-repos.txt` next to the config). `all`: every private repo. `off` disables. Public repos are never flagged. Recognises the standard `ubuntu-*`, `windows-*` and `macos-*` labels and the "GitHub Actions" runner group; larger runners with custom labels are not detected. |
 | `runnerOfflineMinutes` | `3` | Notify when a self-hosted runner that was online in this session stays offline this long, and again when it comes back. `0` disables. Needs permission to list runners (repo admin). |
 | `runnerMemoryAlertPercent` | `90` | Notify when a runner's RAM stays at or above this percentage for 2 minutes; the RAM bar turns red. Needs metrics (same machine or agent). `0` disables. |
-| `onlyMine` | `false` | Only show runs triggered by you. |
+| `onlyMine` | `false` | Only show runs triggered by you. Also in tray → Filters. |
+| `hiddenRepos` | `[]` | `"owner/repo"` entries hidden from the widget and not polled. Right-click a run → Hide repository; tray → Filters → Show hidden clears the list. |
+| `hiddenWorkflows` | `[]` | `"owner/repo:Workflow name"` entries hidden from the widget (no notifications either). Right-click a run → Hide workflow. |
 | `agentUrlTemplate` | `http://{runner}:9465` | Where to find the metrics agent of a self-hosted runner. `""` disables. |
 | `agents` | `{}` | Per-runner URL override: `{ "runner-name": "http://10.0.0.5:9465" }`. |
 | `agentToken` | `null` | Sent as `X-Agent-Token` if the agents use `--token`. |
-| `language` | `auto` | `auto` follows the OS, or a code such as `en` / `pt-BR`. |
+| `language` | `auto` | `auto` follows the OS, or a code such as `en` / `pt-BR` / `es`. |
 | `theme` | `system` | `system`, `dark` or `light`. |
 | `startWithSystem` | `true` | Start at login (also toggled from the tray menu). |
 | `idleOpacity` | `0.6` | Widget opacity when nothing is running (0.2–1). |

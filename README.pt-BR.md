@@ -52,7 +52,7 @@ RunnerWatch --demo
 - Runners self-hosted, com status e CPU/RAM. Você recebe uma notificação quando um runner que estava online fica offline por 3 minutos, e quando a RAM dele passa de 90% por 2 minutos. Falta de memória é a causa mais comum do erro "runner lost communication".
 - **RUNNER PAGO**: um job de um repositório privado que costuma usar runner self-hosted caiu num runner do GitHub (`ubuntu-latest` e parecidos), que cobra minutos. Envia uma notificação, no máximo uma vez a cada 12 horas por workflow. Assim você percebe uma mudança no `runs-on` antes da fatura.
 
-Clique numa execução para abri-la no GitHub. No Windows, `Ctrl+Alt+G` mostra e esconde o widget; no macOS e no Linux, use o ícone da bandeja. O idioma (português ou inglês) e o tema claro/escuro seguem o sistema.
+Clique numa execução para abri-la no GitHub. Com o botão direito você cancela a execução, aprova um deploy que espera aprovação de environment, re-executa jobs que falharam ou oculta aquele workflow ou repositório (bandeja → Filtros mostra de novo e tem "só execuções disparadas por mim"). No Windows, `Ctrl+Alt+G` mostra e esconde o widget; no macOS e no Linux, use o ícone da bandeja. O idioma (português, inglês ou espanhol) e o tema claro/escuro seguem o sistema.
 
 Tamanho e posição:
 

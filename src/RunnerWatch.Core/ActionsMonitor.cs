@@ -135,7 +135,9 @@ public sealed class ActionsMonitor : ISnapshotSource
             if (_now() - _runnersAt > TimeSpan.FromSeconds(60))
                 await RefreshRunnersAsync(ct);
 
-            foreach (var repo in _repos.Where(r => now >= _nextPoll.GetValueOrDefault(r)).ToList())
+            foreach (var hidden in _active.Keys.Where(r => RunFilter.RepoHidden(_cfg, r)).ToList())
+                _active.Remove(hidden);
+            foreach (var repo in _repos.Where(r => !RunFilter.RepoHidden(_cfg, r) && now >= _nextPoll.GetValueOrDefault(r)).ToList())
             {
                 bool anyActive = false;
                 try
@@ -193,24 +195,52 @@ public sealed class ActionsMonitor : ISnapshotSource
         _runnersAt = DateTimeOffset.MinValue;
     }
 
-    public async Task<string?> RerunFailedAsync(RunView run, CancellationToken ct)
+    public Task<string?> RerunFailedAsync(RunView run, CancellationToken ct) => RunActionAsync("Re-run", run, "error.rerunForbidden", async () =>
+    {
+        await _api.PostAsync($"repos/{run.Repo}/actions/runs/{run.Id}/rerun-failed-jobs", ct);
+        _failed.Remove(run.Id);
+        return null;
+    });
+
+    public Task<string?> CancelAsync(RunView run, CancellationToken ct) => RunActionAsync("Cancel", run, "error.actionForbidden", async () =>
+    {
+        try { await _api.PostAsync($"repos/{run.Repo}/actions/runs/{run.Id}/cancel", ct); }
+        catch (GitHubException ex) when (ex.Status == HttpStatusCode.Conflict && ex is not RateLimitException) { return L.T("error.cancelConflict"); }
+        return null;
+    });
+
+    public Task<string?> ApproveAsync(RunView run, CancellationToken ct) => RunActionAsync("Approve", run, "error.approveForbidden", async () =>
+    {
+        var path = $"repos/{run.Repo}/actions/runs/{run.Id}/pending_deployments";
+        var pending = await _api.GetAsync(path, GitHubJson.Default.ListPendingDeployment, ct) ?? new();
+        if (pending.Count == 0) return L.T("error.nothingToApprove");
+        var ids = pending.Where(p => p.CurrentUserCanApprove).Select(p => p.Environment.Id).Distinct().ToList();
+        if (ids.Count == 0) return L.T("error.approveForbidden");
+        // Only numbers and fixed text: nothing user-controlled goes into the body.
+        var body = "{\"environment_ids\":[" + string.Join(",", ids) + "],\"state\":\"approved\",\"comment\":\"Approved from RunnerWatch\"}";
+        await _api.PostJsonAsync(path, body, ct);
+        return null;
+    });
+
+    /// <summary>Shared error handling for actions that change a run on GitHub.</summary>
+    async Task<string?> RunActionAsync(string what, RunView run, string forbiddenKey, Func<Task<string?>> action)
     {
         try
         {
-            await _api.PostAsync($"repos/{run.Repo}/actions/runs/{run.Id}/rerun-failed-jobs", ct);
-            Log.Info($"Re-run of failed jobs requested: {run.Repo} #{run.Id}");
-            _failed.Remove(run.Id);
+            var error = await action();
+            if (error != null) { Log.Warn($"{what} not done for {run.Repo} #{run.Id}: {error}"); return error; }
+            Log.Info($"{what} requested: {run.Repo} #{run.Id}");
             _nextPoll.Remove(run.Repo);
             return null;
         }
         catch (GitHubException ex) when (ex.Status is HttpStatusCode.Forbidden or HttpStatusCode.NotFound && ex is not RateLimitException)
         {
-            Log.Warn($"Re-run refused for {run.Repo} #{run.Id}: {ex.Message}");
-            return L.T("error.rerunForbidden");
+            Log.Warn($"{what} refused for {run.Repo} #{run.Id}: {ex.Message}");
+            return L.T(forbiddenKey);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            Log.Error($"Re-run failed for {run.Repo} #{run.Id}", ex);
+            Log.Error($"{what} failed for {run.Repo} #{run.Id}", ex);
             return L.F("error.generic", ex.Message);
         }
     }
@@ -239,7 +269,7 @@ public sealed class ActionsMonitor : ISnapshotSource
     {
         var res = await _api.GetAsync($"repos/{repo}/actions/runs?per_page=30", GitHubJson.Default.RunsResponse, ct);
         var runs = res?.WorkflowRuns ?? new();
-        var activeRuns = runs.Where(r => !IsCompleted(r.Status) && Mine(r)).ToList();
+        var activeRuns = runs.Where(r => !IsCompleted(r.Status) && Mine(r) && RunFilter.Visible(_cfg, repo, r.Name)).ToList();
 
         var prev = _active.GetValueOrDefault(repo) ?? new();
         var next = new Dictionary<long, RunView>();
@@ -441,7 +471,7 @@ public sealed class ActionsMonitor : ISnapshotSource
 
     async Task RefreshRunnersAsync(CancellationToken ct)
     {
-        foreach (var repo in _repos.Where(r => !_noRunnerAccess.Contains(r)))
+        foreach (var repo in _repos.Where(r => !_noRunnerAccess.Contains(r) && !RunFilter.RepoHidden(_cfg, r)))
         {
             try
             {
@@ -455,7 +485,7 @@ public sealed class ActionsMonitor : ISnapshotSource
                 if (_noRunnerAccess.Add(repo)) Log.Info($"No permission to list runners of {repo} (needs admin)");
             }
         }
-        foreach (var gone in _runners.Keys.Except(_repos, StringComparer.OrdinalIgnoreCase).ToList())
+        foreach (var gone in _runners.Keys.Where(r => !_repos.Contains(r, StringComparer.OrdinalIgnoreCase) || RunFilter.RepoHidden(_cfg, r)).ToList())
             _runners.Remove(gone);
         foreach (var repo in _runners.Keys) LearnSelfHosted(repo);
         _runnersAt = _now();
@@ -586,6 +616,7 @@ public sealed class ActionsMonitor : ISnapshotSource
         var runs = _active.Values.SelectMany(d => d.Values)
             .Select(WithFreshMetrics)
             .Concat(_failed.Values.Where(f => !_active.Values.Any(d => d.ContainsKey(f.Id))))
+            .Where(r => RunFilter.Visible(_cfg, r.Repo, r.Workflow))
             .OrderBy(r => r.Phase switch { RunPhase.Running => 0, RunPhase.Failed => 2, _ => 1 })
             .ThenByDescending(r => r.IsDeploy)
             .ThenBy(r => r.CreatedAt)

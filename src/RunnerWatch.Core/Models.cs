@@ -28,6 +28,8 @@ public sealed record Runner(long Id, string Name, string Os, string Status, bool
 public sealed record RunnersResponse(int TotalCount, List<Runner>? Runners);
 
 public sealed record Deployment(long Id, string Environment, DateTimeOffset CreatedAt);
+public sealed record PendingEnvironment(long Id, string? Name);
+public sealed record PendingDeployment(PendingEnvironment Environment, bool CurrentUserCanApprove);
 public sealed record Repo(string FullName, DateTimeOffset? PushedAt, bool Archived);
 
 // ---- Runner metrics (agent / local machine) ----
@@ -41,6 +43,7 @@ public sealed record AgentMetrics(double? CpuPercent, long? MemUsed, long? MemTo
 [JsonSerializable(typeof(JobsResponse))]
 [JsonSerializable(typeof(RunnersResponse))]
 [JsonSerializable(typeof(List<Deployment>))]
+[JsonSerializable(typeof(List<PendingDeployment>))]
 [JsonSerializable(typeof(List<Repo>))]
 [JsonSerializable(typeof(AgentMetrics))]
 public sealed partial class GitHubJson : JsonSerializerContext;
@@ -128,4 +131,8 @@ public interface ISnapshotSource
     void Kick();
     /// <summary>Re-runs only the failed jobs of a run. Returns an error message, or null on success.</summary>
     Task<string?> RerunFailedAsync(RunView run, CancellationToken ct);
+    /// <summary>Cancels a queued or running run. Returns an error message, or null on success.</summary>
+    Task<string?> CancelAsync(RunView run, CancellationToken ct);
+    /// <summary>Approves the environments a waiting run needs that the user may approve. Error message or null.</summary>
+    Task<string?> ApproveAsync(RunView run, CancellationToken ct);
 }

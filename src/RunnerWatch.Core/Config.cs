@@ -20,6 +20,10 @@ public sealed class AppConfig
     public bool Notifications { get; set; } = true;
     /// <summary>Only show runs triggered by you.</summary>
     public bool OnlyMine { get; set; }
+    /// <summary>"owner/repo" entries hidden from the widget (not polled at all).</summary>
+    public List<string> HiddenRepos { get; set; } = new();
+    /// <summary>"owner/repo:Workflow name" entries hidden from the widget.</summary>
+    public List<string> HiddenWorkflows { get; set; } = new();
     /// <summary>How long a failed run stays in the widget (with a re-run button). 0 hides failures.</summary>
     public int ShowFailuresMinutes { get; set; } = 15;
 
